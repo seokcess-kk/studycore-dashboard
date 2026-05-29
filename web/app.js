@@ -137,9 +137,9 @@
 
     if (REMOTE) {
       var submit = $("login-form").querySelector("button[type=submit]");
-      if (submit) submit.disabled = true;
+      if (submit) { submit.disabled = true; submit.classList.add("is-busy"); }
       window.SCApi.getReport(name, phone).then(function (res) {
-        if (submit) submit.disabled = false;
+        if (submit) { submit.disabled = false; submit.classList.remove("is-busy"); }
         if (!res || !res.student) {
           err.textContent = "학생 이름이나 휴대폰 번호 뒷자리를 다시 확인해 주세요.";
           err.hidden = false;
@@ -147,7 +147,7 @@
         }
         applyReport(res, name, phone);
       }).catch(function (ex) {
-        if (submit) submit.disabled = false;
+        if (submit) { submit.disabled = false; submit.classList.remove("is-busy"); }
         err.textContent = "리포트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
         err.hidden = false;
         if (window.console) console.error(ex);

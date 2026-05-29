@@ -36,6 +36,43 @@ html, body {
 }
 button { font-family: inherit; cursor: pointer; }
 
+/* ===== 버튼·인터랙션 피드백 (눌림 / 호버 / 포커스 / 처리중) ===== */
+button, .btn-primary, .btn-ghost, .nav-arrow, .demo-chip, .modal-close,
+.cal-cell.clickable, summary, select, a {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .08s ease, filter .15s, background-color .15s,
+    border-color .15s, box-shadow .15s, opacity .15s, color .15s;
+}
+/* 눌림: 살짝 가라앉는 느낌(모바일 탭 포함) */
+button:active, .demo-chip:active, .modal-close:active,
+.cal-cell.clickable:active { transform: scale(.96); }
+.btn-primary:active:not(:disabled) { transform: scale(.98); filter: brightness(.92); }
+.nav-arrow:not(:disabled):active { transform: scale(.9); }
+/* 호버(데스크탑) */
+.btn-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.btn-ghost:hover { background: var(--fill); border-color: var(--ink-soft); color: var(--ink); }
+.nav-arrow:not(:disabled):hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.demo-chip:hover { border-color: var(--primary); }
+.modal-close:hover { background: var(--track); color: var(--ink); }
+/* 비활성: 눌러도 안 먹는 상태를 분명히 */
+.btn-primary:disabled { opacity: .55; cursor: default; }
+button:disabled { cursor: default; }
+/* 키보드 포커스 링(접근성) */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+summary:focus-visible, .cal-cell.clickable:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+/* 달력 셀: 탭하면 강조 */
+.cal-cell.clickable:active { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft) inset; }
+/* 처리 중(.is-busy): 텍스트 숨기고 스피너 — 로그인 등 비동기 버튼용 */
+.btn-primary.is-busy { color: transparent !important; pointer-events: none; position: relative; }
+.btn-primary.is-busy::after {
+  content: ""; position: absolute; top: 50%; left: 50%; width: 16px; height: 16px;
+  margin: -8px 0 0 -8px; border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff;
+  border-radius: 50%; animation: btnspin .6s linear infinite;
+}
+@keyframes btnspin { to { transform: rotate(360deg); } }
+
 .view { display: none; max-width: 600px; margin: 0 auto; padding: 0 16px 48px; }
 .view.active { display: block; }
 

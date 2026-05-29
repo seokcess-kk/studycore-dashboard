@@ -503,7 +503,7 @@
       var err = $("auth-error");
       err.textContent = "데이터를 불러오지 못했습니다: " + (ex.message || ex); err.hidden = false;
       showLoginGate();
-      var b = $("auth-btn"); if (b) b.disabled = false;
+      var b = $("auth-btn"); if (b) { b.disabled = false; b.classList.remove("is-busy"); }
       if (window.console) console.error(ex);
     });
   }
@@ -522,10 +522,10 @@
       e.preventDefault();
       var email = $("auth-email").value.trim(), pw = $("auth-pw").value;
       var err = $("auth-error"); err.hidden = true;
-      var b = $("auth-btn"); b.disabled = true;
+      var b = $("auth-btn"); b.disabled = true; b.classList.add("is-busy");
       window.SCApi.adminSignIn(email, pw).then(function () { return afterLogin(); })
         .catch(function (ex) {
-          b.disabled = false;
+          b.disabled = false; b.classList.remove("is-busy");
           err.textContent = "이메일 또는 비밀번호를 다시 확인해 주세요.";
           err.hidden = false; if (window.console) console.error(ex);
         });

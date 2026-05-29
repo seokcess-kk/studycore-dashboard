@@ -104,3 +104,11 @@ body.admin { background: #f4f2ee; }
 .cr-save { margin-top: 14px; }
 .cr-save .btn-primary { width: 100%; margin: 0; }
 .cr-saved-note { color: #1f8a5b; font-size: 13px; text-align: center; margin-top: 10px; }
+
+/* 인터랙션 피드백 (눌림은 styles.css 전역, 여기선 관리자 버튼 호버) */
+.flag-row button:hover { background: #e8eef4; }
+.flag-row button.done:hover { background: #f5f3ef; }
+.loaded-info button:hover { background: #f5f3ef; border-color: #6b7178; }
+.flag-group > summary:hover { background: #faf9f6; }
+.admin-toolbar select:hover, .admin-toolbar .admin-search:hover { border-color: #b9b3aa; }
+.upload-drop:hover { border-color: #b9b3aa; }
