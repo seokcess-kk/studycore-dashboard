@@ -56,9 +56,9 @@
     var box = $("admin-stats");
     box.innerHTML = "";
     function stat(v, l, cls) { var c = el("div", "astat " + (cls || "")); c.appendChild(el("div", "v", v)); c.appendChild(el("div", "l", l)); return c; }
-    box.appendChild(stat(flags.length, "미체크 건수", flags.length ? "" : "done"));
-    box.appendChild(stat(done, "보정 완료", "done"));
-    box.appendChild(stat(flags.length - done, "남은 보정", (flags.length - done) ? "todo" : "done"));
+    box.appendChild(stat(flags.length, "확인 대상", flags.length ? "" : "done"));
+    box.appendChild(stat(done, "확인 완료", "done"));
+    box.appendChild(stat(flags.length - done, "남은 항목", (flags.length - done) ? "todo" : "done"));
   }
 
   function renderList() {
@@ -78,7 +78,7 @@
     var wrap = $("flag-list");
     wrap.innerHTML = "";
     var keys = Object.keys(byKey);
-    if (!keys.length) { wrap.appendChild(el("p", "empty-note", "표시할 항목이 없습니다. 🎉")); return; }
+    if (!keys.length) { wrap.appendChild(el("p", "empty-note", "확인할 항목이 없습니다.")); return; }
 
     // 그룹별 집계(정렬 기준): 임시시간 합·미보정 수·최근 날짜
     var aggOf = {};
@@ -110,7 +110,7 @@
       var g = el("details", "flag-group");
       g.open = true;
       var sum = el("summary", null,
-        "<span>" + label + "</span><span class='gcount'>" + items.length + "건 · 보정 " + doneN + "</span>");
+        "<span>" + label + "</span><span class='gcount'>" + items.length + "건 · 완료 " + doneN + "</span>");
       g.appendChild(sum);
       items.forEach(function (f) {
         var row = el("div", "flag-row");
@@ -118,9 +118,9 @@
         row.appendChild(el("div", "fr-date", mmdd(f.date) + " <small style='color:#9aa1ad'>(" + DOW[dowOf(f.date)] + ")</small>"));
         row.appendChild(el("div", "fr-mid", "입장 " + (f.inTime || "-") + " → " + f.reason + " " + (f.outTime || "-")));
         var st = el("div", "fr-status " + (f.corrected ? "done" : "todo"),
-          f.corrected ? ("✓ 순공부 " + C.fmtHM(corr.netSec)) : ("임시 " + C.fmtHM(f.provSec)));
+          f.corrected ? ("완료 " + C.fmtHM(corr.netSec)) : ("확인 필요 " + C.fmtHM(f.provSec)));
         row.appendChild(st);
-        var btn = el("button", f.corrected ? "done" : "", f.corrected ? "수정" : "보정");
+        var btn = el("button", f.corrected ? "done" : "", f.corrected ? "수정" : "확인");
         btn.addEventListener("click", function () { openModal(f); });
         row.appendChild(btn);
         g.appendChild(row);
@@ -134,7 +134,7 @@
     current = f;
     $("corr-target").innerHTML = f.name + (f.key.indexOf("#") >= 0 ? " (좌석 " + f.seat + ")" : "") +
       " · " + mmdd(f.date) +
-      " <small>(입장 " + (f.inTime || "-") + " → 강제퇴장 " + (f.outTime || "-") + ")</small>";
+      " <small>(입장 " + (f.inTime || "-") + " → 자동 퇴실 " + (f.outTime || "-") + ")</small>";
     $("corr-input").value = "";
     $("corr-result").hidden = true;
     $("corr-result").className = "corr-result";
@@ -179,7 +179,7 @@
     box.appendChild(steps);
 
     var save = el("div", "cr-save");
-    var btn = el("button", "btn-primary", "이 값으로 저장");
+    var btn = el("button", "btn-primary", "저장");
     btn.addEventListener("click", function () {
       var key = current.key, date = current.date;
       var payload = {
@@ -190,7 +190,7 @@
         btn.disabled = true;
         window.SCApi.saveCorrection(key, date, payload).then(function () {
           corrMap[key + "|" + date] = payload; closeModal(); renderList();
-        }).catch(function (ex) { btn.disabled = false; window.alert("저장 실패: " + (ex.message || ex)); });
+        }).catch(function (ex) { btn.disabled = false; window.alert("저장하지 못했습니다: " + (ex.message || ex)); });
       } else {
         C.save(key, date, payload); closeModal(); renderList();
       }
@@ -226,8 +226,8 @@
       box.innerHTML = "";
       var months = (DATA.months || []).map(ymLabel).join(", ") || "없음";
       var rc = rosterCount(DATA.students);
-      box.appendChild(el("div", null, "서버 반영 데이터: <b>" + months + "</b> <span class='badge-src'>Supabase</span>" +
-        (rc ? " · 명부 연락처 <b>" + rc + "명</b>" : " · <span style='color:#c0392b'>명부 미등록</span>")));
+      box.appendChild(el("div", null, "반영된 월: <b>" + months + "</b> <span class='badge-src'>Supabase</span>" +
+        (rc ? " · 연락처 <b>" + rc + "명</b>" : " · <span style='color:#c0392b'>명부 없음</span>")));
       var right = el("div", null, "");
       var out = el("button", null, "로그아웃");
       out.addEventListener("click", function () { window.SCApi.adminSignOut().then(function () { window.location.reload(); }); });
@@ -240,12 +240,12 @@
     var months = (active && active.months || []).map(ymLabel).join(", ") || "없음";
     box.innerHTML = "";
     var rcL = rosterCount(active && active.students);
-    var left = el("div", null, "현재 반영된 데이터: <b>" + months + "</b> " +
+    var left = el("div", null, "반영된 월: <b>" + months + "</b> " +
       "<span class='badge-src" + (uploaded ? "" : " bundled") + "'>" + (uploaded ? "업로드본" : "기본 샘플") + "</span>" +
-      (rcL ? " · 명부 연락처 <b>" + rcL + "명</b>" : " · 명부 미등록"));
+      (rcL ? " · 연락처 <b>" + rcL + "명</b>" : " · 명부 없음"));
     box.appendChild(left);
     var right = el("div", null, "");
-    var exportBtn = el("button", null, "💾 데이터 내보내기(JSON)");
+    var exportBtn = el("button", null, "데이터 내보내기");
     exportBtn.addEventListener("click", function () {
       var data = window.SCDataset.active() || {};
       data._exportedMonths = data.months;
@@ -259,9 +259,9 @@
     });
     right.appendChild(exportBtn);
     if (uploaded) {
-      var btn = el("button", null, "초기화(샘플로 되돌리기)");
+      var btn = el("button", null, "초기화");
       btn.addEventListener("click", function () {
-        if (window.confirm("업로드한 데이터를 모두 지우고 기본 샘플로 되돌릴까요? (보정 기록은 유지됩니다)")) {
+        if (window.confirm("업로드한 데이터를 지우고 기본 샘플로 되돌릴까요? 확인 완료 기록은 유지됩니다.")) {
           window.SCDataset.reset(); window.location.reload();
         }
       });
@@ -278,10 +278,10 @@
     function cell(v, l, warn) {
       var c = el("div"); c.appendChild(el("div", "v" + (warn ? " warn" : ""), v)); c.appendChild(el("div", "l", l)); return c;
     }
-    grid.appendChild(cell(s.months.map(ymLabel).join(", "), "감지된 월"));
+    grid.appendChild(cell(s.months.map(ymLabel).join(", "), "월"));
     grid.appendChild(cell(s.studentCount, "학생 수"));
-    grid.appendChild(cell(s.rowCount, "기록 행"));
-    grid.appendChild(cell(s.autoCount, "자동퇴장(보정대상)", s.autoCount > 0));
+    grid.appendChild(cell(s.rowCount, "기록 수"));
+    grid.appendChild(cell(s.autoCount, "확인 대상", s.autoCount > 0));
     box.appendChild(grid);
 
     // 현재 반영된 데이터와 비교: 신규 월 vs 덮어쓰기 월
@@ -293,32 +293,32 @@
 
     if (newMonths.length) {
       box.appendChild(el("div", "up-note ok",
-        "🆕 <b>신규 추가</b> · " + newMonths.map(ymLabel).join(", ")));
+        "<b>새로 추가</b> · " + newMonths.map(ymLabel).join(", ")));
     }
     if (overMonths.length) {
       box.appendChild(el("div", "up-note warn",
-        "⚠️ <b>덮어쓰기</b> · " + overMonths.map(ymLabel).join(", ") +
-        " — 이미 반영된 데이터를 이 파일로 교체합니다. (보정 기록은 유지됩니다)"));
+        "<b>다시 반영</b> · " + overMonths.map(ymLabel).join(", ") +
+        " — 기존 월 데이터가 이 파일로 바뀝니다. 확인 완료 기록은 유지됩니다."));
     }
 
     var apply = el("div", "up-apply");
-    var btn = el("button", "btn-primary", overMonths.length ? "덮어쓰고 반영하기" : "이 데이터 반영하기");
+    var btn = el("button", "btn-primary", overMonths.length ? "다시 반영" : "반영");
     btn.addEventListener("click", function () {
       if (overMonths.length &&
-        !window.confirm(overMonths.map(ymLabel).join(", ") + " 데이터를 덮어쓸까요?\n기존 보정 기록은 유지됩니다.")) return;
+        !window.confirm(overMonths.map(ymLabel).join(", ") + " 데이터를 다시 반영할까요?\n확인 완료 기록은 유지됩니다.")) return;
       if (REMOTE) {
         var base = { months: DATA.months, openDays: DATA.openDays, classAverages: DATA.classAverages, students: DATA.students.slice() };
         var merged = window.SCIngest.merge(base, built.dataset);
         merged.classAverages = window.SCAgg.computeClassAverages(merged, getCorr);
-        btn.disabled = true; uMsg("서버에 저장 중…", "");
+        btn.disabled = true; uMsg("저장 중입니다.", "");
         window.SCApi.saveDataset(merged).then(function () {
-          uMsg("반영되었습니다. 새로고침합니다…", "ok");
+          uMsg("반영했습니다. 화면을 새로고침합니다.", "ok");
           window.setTimeout(function () { window.location.reload(); }, 700);
-        }).catch(function (ex) { btn.disabled = false; uMsg("서버 저장 실패: " + (ex.message || ex), "err"); });
+        }).catch(function (ex) { btn.disabled = false; uMsg("저장하지 못했습니다: " + (ex.message || ex), "err"); });
       } else {
         var mergedL = window.SCIngest.merge(window.SCDataset.seed(), built.dataset);
         window.SCDataset.save(mergedL);
-        uMsg("반영되었습니다. 화면을 새로고침합니다…", "ok");
+        uMsg("반영했습니다. 화면을 새로고침합니다.", "ok");
         window.setTimeout(function () { window.location.reload(); }, 600);
       }
     });
@@ -327,7 +327,7 @@
   }
   function handleFile(file) {
     if (!file) return;
-    if (!window.XLSX) { uMsg("엑셀 라이브러리를 불러오지 못했습니다.", "err"); return; }
+    if (!window.XLSX) { uMsg("엑셀 파일을 읽을 준비가 되지 않았습니다.", "err"); return; }
     $("upload-fname").textContent = "📄 " + file.name;
     uMsg("", null); $("upload-preview").hidden = true; pendingBuilt = null;
     var reader = new FileReader();
@@ -340,7 +340,7 @@
         if (!built.ok) { uMsg("⚠️ " + built.error, "err"); return; }
         pendingBuilt = built;
         showPreview(built);
-      } catch (err) { uMsg("엑셀을 읽지 못했습니다: " + err.message, "err"); }
+      } catch (err) { uMsg("엑셀 파일을 읽지 못했습니다: " + err.message, "err"); }
     };
     reader.onerror = function () { uMsg("파일을 읽지 못했습니다.", "err"); };
     reader.readAsArrayBuffer(file);
@@ -377,9 +377,9 @@
     function cell(v, l, warn) {
       var c = el("div"); c.appendChild(el("div", "v" + (warn ? " warn" : ""), v)); c.appendChild(el("div", "l", l)); return c;
     }
-    grid.appendChild(cell(s.count, "명부 학생 수"));
-    grid.appendChild(cell(s.withGuardian, "보호자 연락처"));
-    grid.appendChild(cell(s.withStudent, "학생 연락처"));
+    grid.appendChild(cell(s.count, "학생 수"));
+    grid.appendChild(cell(s.withGuardian, "보호자 번호"));
+    grid.appendChild(cell(s.withStudent, "학생 번호"));
     grid.appendChild(cell(s.noPhone, "연락처 없음", s.noPhone > 0));
     box.appendChild(grid);
 
@@ -397,12 +397,12 @@
     var matched = 0, rosterOnly = 0;
     built.roster.forEach(function (rec) { if (names[rec.name]) matched++; else rosterOnly++; });
     box.appendChild(el("div", "up-note ok",
-      "🔗 출결과 매칭 <b>" + matched + "명</b> · 🆕 신규(출결 없음) <b>" + rosterOnly + "명</b>"));
+      "출결 매칭 <b>" + matched + "명</b> · 신규 <b>" + rosterOnly + "명</b>"));
     box.appendChild(el("div", "up-note warn",
-      "ℹ️ 로그인 전화번호와 프로필이 이 명부로 <b>교체</b>됩니다. (출결·보정 기록은 유지)"));
+      "로그인 번호와 학생 정보가 이 명부 기준으로 업데이트됩니다."));
 
     var apply = el("div", "up-apply");
-    var btn = el("button", "btn-primary", "이 명부 반영하기");
+    var btn = el("button", "btn-primary", "반영");
     btn.addEventListener("click", function () { applyRoster(built, btn); });
     apply.appendChild(btn);
     box.appendChild(apply);
@@ -412,24 +412,24 @@
       var base = { months: DATA.months, openDays: DATA.openDays, classAverages: DATA.classAverages, students: DATA.students.slice() };
       var res = window.SCRoster.applyToDataset(base, built.roster);
       window.SCIngest.assignPhones(res.dataset.students); // 연락처 없는 학생엔 데모번호 보충
-      btn.disabled = true; rMsg("서버에 저장 중…", "");
+      btn.disabled = true; rMsg("저장 중입니다.", "");
       window.SCApi.saveDataset(res.dataset).then(function () {
-        rMsg("명부가 반영되었습니다. 새로고침합니다…", "ok");
+        rMsg("명부를 반영했습니다. 화면을 새로고침합니다.", "ok");
         window.setTimeout(function () { window.location.reload(); }, 700);
-      }).catch(function (ex) { btn.disabled = false; rMsg("서버 저장 실패: " + (ex.message || ex), "err"); });
+      }).catch(function (ex) { btn.disabled = false; rMsg("저장하지 못했습니다: " + (ex.message || ex), "err"); });
     } else {
       var baseL = window.SCDataset.seed() || { months: [], openDays: {}, classAverages: {}, students: [] };
       var resL = window.SCRoster.applyToDataset(baseL, built.roster);
       window.SCIngest.assignPhones(resL.dataset.students);
       window.SCDataset.save(resL.dataset);
-      rMsg("명부가 반영되었습니다. 화면을 새로고침합니다…", "ok");
+      rMsg("명부를 반영했습니다. 화면을 새로고침합니다.", "ok");
       window.setTimeout(function () { window.location.reload(); }, 600);
     }
   }
   function handleRosterFile(file) {
     if (!file) return;
-    if (!window.XLSX) { rMsg("엑셀 라이브러리를 불러오지 못했습니다.", "err"); return; }
-    if (!window.SCRoster) { rMsg("명부 모듈을 불러오지 못했습니다.", "err"); return; }
+    if (!window.XLSX) { rMsg("엑셀 파일을 읽을 준비가 되지 않았습니다.", "err"); return; }
+    if (!window.SCRoster) { rMsg("명부 파일을 처리할 준비가 되지 않았습니다.", "err"); return; }
     $("roster-fname").textContent = "📄 " + file.name;
     rMsg("", null); $("roster-preview").hidden = true; pendingRoster = null;
     var reader = new FileReader();
@@ -442,7 +442,7 @@
         if (!built.ok) { rMsg("⚠️ " + built.error, "err"); return; }
         pendingRoster = built;
         showRosterPreview(built);
-      } catch (err) { rMsg("엑셀을 읽지 못했습니다: " + err.message, "err"); }
+      } catch (err) { rMsg("엑셀 파일을 읽지 못했습니다: " + err.message, "err"); }
     };
     reader.onerror = function () { rMsg("파일을 읽지 못했습니다.", "err"); };
     reader.readAsArrayBuffer(file);
@@ -482,7 +482,7 @@
       if (REMOTE) {
         window.SCApi.removeCorrection(key, date).then(function () {
           delete corrMap[key + "|" + date]; closeModal(); renderList();
-        }).catch(function (ex) { window.alert("삭제 실패: " + (ex.message || ex)); });
+        }).catch(function (ex) { window.alert("삭제하지 못했습니다: " + (ex.message || ex)); });
       } else { C.remove(key, date); closeModal(); renderList(); }
     });
     $("corr-modal").addEventListener("click", function (e) { if (e.target.getAttribute("data-close")) closeModal(); });
@@ -496,7 +496,7 @@
       startApp();
     }).catch(function (ex) {
       var err = $("auth-error");
-      err.textContent = "데이터 로드 실패: " + (ex.message || ex); err.hidden = false;
+      err.textContent = "데이터를 불러오지 못했습니다: " + (ex.message || ex); err.hidden = false;
       $("admin-auth").hidden = false; $("admin-main").hidden = true;
       var b = $("auth-btn"); if (b) b.disabled = false;
       if (window.console) console.error(ex);
@@ -518,7 +518,7 @@
       window.SCApi.adminSignIn(email, pw).then(function () { return afterLogin(); })
         .catch(function (ex) {
           b.disabled = false;
-          err.textContent = "로그인 실패 — 이메일/비밀번호를 확인하세요.";
+          err.textContent = "이메일 또는 비밀번호를 다시 확인해 주세요.";
           err.hidden = false; if (window.console) console.error(ex);
         });
     });

@@ -25,7 +25,7 @@
     if (/재입장/.test(label)) return "reentry";
     if (/입장/.test(label)) return "entry";
     if (/퇴장/.test(label)) return "exit";   // 강제퇴장 포함
-    if (/외출/.test(label)) return "out";
+    if (/외출|이동/.test(label)) return "out"; // 이동도 외출과 동일하게 '자리 비움'으로
     return "unknown";
   }
 

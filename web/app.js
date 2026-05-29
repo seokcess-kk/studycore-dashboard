@@ -34,7 +34,7 @@
     sec = sec || 0;
     var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
     if (m === 60) { h += 1; m = 0; }
-    if (h > 0 && m > 0) return h + "h" + m + "m";
+    if (h > 0 && m > 0) return h + "h " + m + "m";
     if (h > 0) return h + "h";
     return m + "m";
   }
@@ -95,6 +95,12 @@
     });
   }
 
+  /* 로그인 세션 유지 — 새로고침/재방문 시 자동 복원 */
+  var SESS_KEY = "studycore_session";
+  function saveSession(name, phone) { try { localStorage.setItem(SESS_KEY, JSON.stringify({ name: name, phone: phone })); } catch (e) {} }
+  function loadSession() { try { return JSON.parse(localStorage.getItem(SESS_KEY) || "null"); } catch (e) { return null; } }
+  function clearSession() { try { localStorage.removeItem(SESS_KEY); } catch (e) {} }
+
   function enterStudent(student) {
     state.student = student;
     _caCache = null;
@@ -103,6 +109,23 @@
     state.monthIdx = idx;
     renderCalendar();
     showView("view-calendar");
+  }
+
+  // 서버 리포트 응답 → DATA 구성 + 진입 (+세션 저장)
+  function applyReport(res, name, phone) {
+    DATA = {
+      months: res.months || [], openDays: res.openDays || {},
+      classAverages: res.classAverages || {}, students: [res.student], _remote: true,
+    };
+    state.corrections = res.corrections || {};
+    saveSession(name, phone);
+    enterStudent(res.student);
+  }
+
+  // 로컬 모드: 이름+전화로 학생 찾기
+  function findLocalStudent(name, phone) {
+    return DATA.students.filter(function (s) { return s.name === name; })
+      .filter(function (s) { return (s.loginPhones && s.loginPhones.indexOf(phone) >= 0) || s.phoneLast4 === phone; })[0];
   }
 
   function handleLogin(e) {
@@ -118,19 +141,14 @@
       window.SCApi.getReport(name, phone).then(function (res) {
         if (submit) submit.disabled = false;
         if (!res || !res.student) {
-          err.textContent = "등록된 학생을 찾을 수 없거나 전화번호 뒷 4자리가 일치하지 않습니다.";
+          err.textContent = "학생 이름이나 휴대폰 번호 뒷자리를 다시 확인해 주세요.";
           err.hidden = false;
           return;
         }
-        DATA = {
-          months: res.months || [], openDays: res.openDays || {},
-          classAverages: res.classAverages || {}, students: [res.student], _remote: true,
-        };
-        state.corrections = res.corrections || {};
-        enterStudent(res.student);
+        applyReport(res, name, phone);
       }).catch(function (ex) {
         if (submit) submit.disabled = false;
-        err.textContent = "조회 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+        err.textContent = "리포트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
         err.hidden = false;
         if (window.console) console.error(ex);
       });
@@ -139,25 +157,43 @@
 
     // 로컬 모드(localStorage/번들)
     var matches = DATA.students.filter(function (s) { return s.name === name; });
-    // 명부의 학생·보호자 번호(loginPhones) 중 아무거나, 또는 대표 phoneLast4 일치
-    var student = matches.filter(function (s) {
-      return (s.loginPhones && s.loginPhones.indexOf(phone) >= 0) || s.phoneLast4 === phone;
-    })[0];
+    var student = findLocalStudent(name, phone);
     if (!student) {
       err.textContent = matches.length
-        ? "전화번호 뒷 4자리가 일치하지 않습니다."
-        : "등록된 학생을 찾을 수 없습니다.";
+        ? "휴대폰 번호 뒷자리를 다시 확인해 주세요."
+        : "학생 이름을 다시 확인해 주세요.";
       err.hidden = false;
       return;
     }
+    saveSession(name, phone);
     enterStudent(student);
+  }
+
+  // 저장된 세션으로 자동 복원 (서버 모드는 최신 데이터 재조회)
+  function restoreSession() {
+    var s = loadSession();
+    if (!s || !s.name || !s.phone) return;
+    $("in-name").value = s.name; $("in-phone").value = s.phone;
+    if (REMOTE) {
+      window.SCApi.getReport(s.name, s.phone).then(function (res) {
+        if (res && res.student) applyReport(res, s.name, s.phone);
+        else clearSession();
+      }).catch(function () { /* 네트워크 오류 시 로그인 화면 유지 */ });
+    } else {
+      var st = findLocalStudent(s.name, s.phone);
+      if (st) enterStudent(st); else clearSession();
+    }
   }
 
   /* ---------- 집계 (보정 반영) — 공용 모듈 SCAgg 사용 ---------- */
   var _caCache = null;
   // 보정 조회기: 원격 모드는 서버가 준 맵, 로컬 모드는 SCCorr(localStorage)
   function corrGetter(key, date) {
-    if (DATA._remote) return (state.corrections && state.corrections[key + "|" + date]) || null;
+    if (DATA._remote) {
+      // 서버(RPC)는 본인 학생 한정이라 보정을 '날짜' 키로 줌. 안전하게 둘 다 조회.
+      var c = state.corrections || {};
+      return c[date] || c[key + "|" + date] || null;
+    }
     return window.SCCorr ? window.SCCorr.get(key, date) : null;
   }
   function computeMonth(student, ym) {
@@ -191,15 +227,15 @@
     box.className = "data-status";
     if (m.provisionalDays > 0) {
       box.classList.add("warn");
-      var parts = ["<b>임시 집계 " + m.provisionalDays + "일 포함</b>"];
-      if (m.correctedDays > 0) parts.push("보정 완료 " + m.correctedDays + "일");
+      var parts = ["<b>확인 필요한 기록 " + m.provisionalDays + "일</b>"];
+      if (m.correctedDays > 0) parts.push("확인 완료 " + m.correctedDays + "일");
       box.innerHTML = '<span class="ds-ic">⚠️</span><span class="ds-tx">' + parts.join(" · ") +
-        " — 퇴실 태그 누락(자동퇴장)으로 체류시간(입장~최종 퇴장)을 잠정 반영했습니다. 외출이 빠지지 않아 실제보다 길 수 있고, 원장 보정 후 확정됩니다.</span>";
+        " — 퇴실 기록이 없어 현재 시간은 임시로 계산되었습니다. 확인 후 더 정확한 시간으로 반영됩니다.</span>";
     } else {
       box.classList.add("ok");
-      var t = m.correctedDays > 0 ? ("확정 집계 · 보정 완료 " + m.correctedDays + "일") : "확정 집계";
+      var t = m.correctedDays > 0 ? ("확정된 기록 · 확인 완료 " + m.correctedDays + "일") : "확정된 기록";
       box.innerHTML = '<span class="ds-ic">✓</span><span class="ds-tx"><b>' + t +
-        "</b> — 모든 출결 기록이 확정되었습니다.</span>";
+        "</b> — 바로 확인할 수 있는 학습 기록입니다.</span>";
     }
     box.hidden = false;
   }
@@ -219,13 +255,13 @@
       return c;
     }
 
-    var headSub = "지난달 대비 " + deltaHtml(m.totalNetSec, prev ? prev.totalNetSec : null);
+    var headSub = "전월 비교 " + deltaHtml(m.totalNetSec, prev ? prev.totalNetSec : null);
     if (m.provisionalNetSec > 0) {
       headSub += '<div class="prov-split">⚠️ 확정 ' + fmtHM(m.totalNetSec - m.provisionalNetSec) +
-        " · 임시 " + fmtHM(m.provisionalNetSec) + " 포함(보정 시 정확)</div>";
+        " · 확인 필요 " + fmtHM(m.provisionalNetSec) + " 포함</div>";
     }
     grid.appendChild(card(
-      "이번 달 총 순공부시간",
+      "이번 달 순공부시간",
       fmtHM(m.totalNetSec),
       headSub,
       true
@@ -233,17 +269,17 @@
     grid.appendChild(card(
       "출석",
       m.attendanceDays + '<small> / ' + m.openDays + '일</small>',
-      m.provisionalDays > 0 ? ("임시 집계 " + m.provisionalDays + "일 포함") : "개근까지 " + (m.openDays - m.attendanceDays) + "일"
+      m.provisionalDays > 0 ? ("확인 필요한 기록 " + m.provisionalDays + "일") : "미출석 " + (m.openDays - m.attendanceDays) + "일"
     ));
     grid.appendChild(card(
-      "공부한 날 하루 평균",
+      "학습일 하루 평균",
       fmtHM(m.dailyAvgSec),
-      "지난달 대비 " + deltaHtml(m.dailyAvgSec, prev ? prev.dailyAvgSec : null)
+      "전월 비교 " + deltaHtml(m.dailyAvgSec, prev ? prev.dailyAvgSec : null)
     ));
     grid.appendChild(card(
       "평일 / 주말 평균",
       '<span style="font-size:18px">' + fmtShort(m.weekdayAvgSec) + " / " + fmtShort(m.weekendAvgSec) + "</span>",
-      "하루 평균 기준"
+      "학습한 날 기준"
     ));
   }
 
@@ -322,9 +358,9 @@
     row.appendChild(track);
     var diff = mine - avg;
     var cmp;
-    if (Math.abs(diff) < 60) cmp = "반 평균과 비슷";
-    else cmp = "반 평균보다 " + fmt(Math.abs(diff)) + (diff > 0 ? " 많음" : " 적음");
-    row.appendChild(el("div", "cc-avg-label", "┃ 반 평균 " + fmt(avg) + " · " + cmp));
+    if (Math.abs(diff) < 60) cmp = "반 평균과 비슷해요";
+    else cmp = "반 평균보다 " + fmt(Math.abs(diff)) + (diff > 0 ? " 많아요" : " 적어요");
+    row.appendChild(el("div", "cc-avg-label", "반 평균 " + fmt(avg) + " · " + cmp));
     return row;
   }
 
@@ -336,9 +372,9 @@
     box.innerHTML = "";
     if (!ca) return;
     box.appendChild(el("div", "cc-title",
-      "👥 같은 반 평균과 비교 <span style='color:#9aa1ad'>(익명 · " + ca.studentCount + "명)</span>"));
-    box.appendChild(bar("이번 달 총 순공부시간", m.totalNetSec, ca.totalNetSec, fmtHM));
-    box.appendChild(bar("공부한 날 하루 평균", m.dailyAvgSec, ca.dailyAvgSec, fmtHM));
+      "같은 반과 비교 <span style='color:#9aa1ad'>(익명 · " + ca.studentCount + "명)</span>"));
+    box.appendChild(bar("이번 달 순공부시간", m.totalNetSec, ca.totalNetSec, fmtHM));
+    box.appendChild(bar("학습일 하루 평균", m.dailyAvgSec, ca.dailyAvgSec, fmtHM));
   }
 
   // 헤더 메타: 학년 · 학교 · 좌석 · 반
@@ -363,8 +399,8 @@
     setDisplay("cal-legend", "none");
     setDisplay("btn-monthly", "none");
     var cal = $("calendar");
-    if (cal) cal.innerHTML = "<div class='empty-data'>아직 출결 기록이 없어요." +
-      "<br><small>등록 후 출결이 쌓이면 이곳에 월간 학습 리포트가 표시됩니다.</small></div>";
+    if (cal) cal.innerHTML = "<div class='empty-data'>아직 학습 기록이 없습니다." +
+      "<br><small>출결 기록이 쌓이면 이곳에서 월간 리포트를 확인할 수 있습니다.</small></div>";
   }
 
   function renderCalendar() {
@@ -403,10 +439,10 @@
 
     if (info.corrected) {
       body.appendChild(el("div", "dm-badge ok",
-        "✓ 보정 완료 — 입·외출 기록으로 순공부시간을 계산해 반영했습니다."));
+        "✓ 확인 완료 — 입·외출 기록을 반영한 시간입니다."));
     } else if (info.provisional) {
       body.appendChild(el("div", "dm-badge",
-        "⚠️ 임시 집계 — 퇴실 태그 누락(자동퇴장)으로 입장~최종 퇴장까지의 체류시간을 잠정 순공부로 반영했습니다. 외출이 빠지지 않아 실제보다 길 수 있고, 보정하면 정확해집니다."));
+        "⚠️ 확인 필요 — 퇴실 기록이 없어 현재 시간은 임시로 계산되었습니다. 확인 후 더 정확해집니다."));
     }
 
     var hero = el("div", "dm-hero");
@@ -422,13 +458,13 @@
     body.appendChild(el("div", "kv",
       '<span class="k">외출 횟수</span><span class="v">' + info.outings + "회</span>"));
     body.appendChild(el("div", "kv",
-      '<span class="k">세션 수</span><span class="v">' + info.sessions.length + "회 입·퇴장</span>"));
+      '<span class="k">입퇴장 기록</span><span class="v">' + info.sessions.length + "건</span>"));
 
     // 보정된 날: 입·외출 구간 분해로 표시
     if (info.corrected && info.correction && info.correction.events) {
       var ev = info.correction.events;
       var steps = el("div", "session");
-      steps.appendChild(el("div", "s-head", '<span class="s-time">입·외출 기록 분해</span>'));
+      steps.appendChild(el("div", "s-head", '<span class="s-time">시간 계산 내역</span>'));
       for (var k = 0; k < ev.length - 1; k++) {
         var a = ev[k], b = ev[k + 1];
         var study = (a.type === "entry" || a.type === "reentry");
@@ -450,7 +486,7 @@
       card.appendChild(el("div", "s-head",
         '<span class="s-time">' + (s.in || "-") + " → " + (s.out || "-") + "</span>" +
         '<span class="s-net">' + (s.provisional
-          ? "체류 " + fmtHM(s.totalSec) + " (임시 순공부)"
+          ? "임시 " + fmtHM(s.totalSec)
           : "순 " + fmtHM(s.netSec)) + "</span>"));
       var meta = [];
       if (s.totalSec != null) meta.push("체류 " + fmtHM(s.totalSec));
@@ -508,11 +544,11 @@
       xaxis.appendChild(el("div", "bx", (lbl % 5 === 0 || lbl === 1) ? String(lbl) : ""));
     });
     var sec = el("section");
-    sec.appendChild(el("h3", null, "📈 일별 순공부시간 추이"));
+    sec.appendChild(el("h3", null, "일별 학습 흐름"));
     sec.appendChild(bars);
     sec.appendChild(xaxis);
     sec.appendChild(el("div", "cc-avg-label",
-      '<span class="dot dot-study"></span> 평일 &nbsp; <span class="dot" style="background:var(--weekend)"></span> 주말 &nbsp; <span class="dot dot-nocheck"></span> 퇴실미체크 &nbsp; <span class="dot dot-absent"></span> 결석'));
+      '<span class="dot dot-study"></span> 평일 &nbsp; <span class="dot" style="background:var(--weekend)"></span> 주말 &nbsp; <span class="dot dot-nocheck"></span> 확인 필요 &nbsp; <span class="dot dot-absent"></span> 결석'));
     return sec;
   }
 
@@ -542,7 +578,7 @@
       grid.appendChild(cell);
     }
     var sec = el("section");
-    sec.appendChild(el("h3", null, "📅 요일별 평균 <span class='mb-sub'>(공부한 날 기준)</span>"));
+    sec.appendChild(el("h3", null, "요일별 평균 <span class='mb-sub'>(학습한 날 기준)</span>"));
     sec.appendChild(grid);
     return sec;
   }
@@ -550,7 +586,7 @@
   function weekdayWeekendBlock() {
     var m = currentMonth();
     var sec = el("section");
-    sec.appendChild(el("h3", null, "⚖️ 평일 vs 주말"));
+    sec.appendChild(el("h3", null, "평일 vs 주말"));
     var ww = el("div", "ww");
     ww.innerHTML =
       '<div class="ww-item weekday"><div class="wl">평일 하루 평균</div><div class="wv">' + fmtHM(m.weekdayAvgSec) + "</div></div>" +
@@ -581,10 +617,10 @@
       xaxis.appendChild(el("div", "hx", (h % 3 === 0) ? h : ""));
     }
     var sec = el("section");
-    sec.appendChild(el("h3", null, "🕐 주로 오는 시간대 <span class='mb-sub'>(첫 입실 기준)</span>"));
+    sec.appendChild(el("h3", null, "주로 입실한 시간대 <span class='mb-sub'>(첫 입실 기준)</span>"));
     sec.appendChild(bars);
     sec.appendChild(xaxis);
-    if (peak >= 0) sec.appendChild(el("div", "cc-avg-label", "가장 자주 입실: " + peak + "시 무렵"));
+    if (peak >= 0) sec.appendChild(el("div", "cc-avg-label", "가장 자주 입실한 시간: " + peak + "시 무렵"));
     return sec;
   }
 
@@ -596,13 +632,13 @@
     var items = [];
 
     // 1) 총합 + 전월 대비
-    var s1 = "이번 달 순공부시간은 <b>" + fmtHM(m.totalNetSec) + "</b>이에요";
+    var s1 = "이번 달 순공부시간은 <b>" + fmtHM(m.totalNetSec) + "</b>입니다";
     if (prev && prev.totalNetSec > 0) {
       var diff = m.totalNetSec - prev.totalNetSec;
       var pct = Math.round(Math.abs(diff) / prev.totalNetSec * 100);
-      if (pct >= 3) s1 += diff > 0 ? (" — 지난달보다 <b>" + pct + "% 늘었어요</b> 📈")
-                                   : (" — 지난달보다 <b>" + pct + "% 줄었어요</b> 📉");
-      else s1 += " — 지난달과 비슷해요";
+      if (pct >= 3) s1 += diff > 0 ? (" — 지난달보다 <b>" + pct + "% 늘었습니다</b>")
+                                   : (" — 지난달보다 <b>" + pct + "% 줄었습니다</b>");
+      else s1 += " — 지난달과 비슷합니다";
     }
     items.push({ ic: "⏱️", tx: s1 });
 
@@ -614,20 +650,20 @@
     });
     var bestDow = -1, bestAvg = -1;
     for (var i = 0; i < 7; i++) { if (cnt[i]) { var a = sum[i] / cnt[i]; if (a > bestAvg) { bestAvg = a; bestDow = i; } } }
-    if (bestDow >= 0) items.push({ ic: "📅", tx: "가장 꾸준했던 요일은 <b>" + DOW[bestDow] + "요일</b>, 평균 <b>" + fmtHM(bestAvg) + "</b> 공부했어요" });
+    if (bestDow >= 0) items.push({ ic: "📅", tx: "가장 학습 시간이 긴 요일은 <b>" + DOW[bestDow] + "요일</b>이며, 평균 <b>" + fmtHM(bestAvg) + "</b>입니다" });
 
     // 3) 평일 vs 주말 집중도
     if (m.weekdayAvgSec && m.weekendAvgSec) {
       if (m.weekdayAvgSec >= m.weekendAvgSec)
-        items.push({ ic: "⚖️", tx: "평일 하루 평균(<b>" + fmtHM(m.weekdayAvgSec) + "</b>)이 주말(<b>" + fmtHM(m.weekendAvgSec) + "</b>)보다 길었어요" });
+        items.push({ ic: "⚖️", tx: "평일 하루 평균(<b>" + fmtHM(m.weekdayAvgSec) + "</b>)이 주말(<b>" + fmtHM(m.weekendAvgSec) + "</b>)보다 깁니다" });
       else
-        items.push({ ic: "⚖️", tx: "주말 하루 평균(<b>" + fmtHM(m.weekendAvgSec) + "</b>)이 평일(<b>" + fmtHM(m.weekdayAvgSec) + "</b>)보다 길었어요" });
+        items.push({ ic: "⚖️", tx: "주말 하루 평균(<b>" + fmtHM(m.weekendAvgSec) + "</b>)이 평일(<b>" + fmtHM(m.weekdayAvgSec) + "</b>)보다 깁니다" });
     }
 
     // 4) 출석/결석
     var absent = Math.max(0, m.openDays - m.attendanceDays);
-    if (absent > 0) items.push({ ic: "🗓️", tx: "운영일 <b>" + m.openDays + "일</b> 중 <b>" + m.attendanceDays + "일</b> 나왔고, <b>" + absent + "일</b>은 출석 기록이 없어요" });
-    else items.push({ ic: "🎉", tx: "운영일 <b>" + m.openDays + "일</b> 모두 출석했어요" });
+    if (absent > 0) items.push({ ic: "🗓️", tx: "운영일 <b>" + m.openDays + "일</b> 중 <b>" + m.attendanceDays + "일</b> 출석했고, <b>" + absent + "일</b>은 기록이 없습니다" });
+    else items.push({ ic: "🎉", tx: "운영일 <b>" + m.openDays + "일</b> 모두 출석했습니다" });
 
     // 5) 짧게 머문 날 (1시간 미만, 임시 제외)
     var shortN = 0;
@@ -635,16 +671,16 @@
       var info = m.days[d];
       if (info.netSec > 0 && info.netSec < 3600 && !info.provisional) shortN++;
     });
-    if (shortN > 0) items.push({ ic: "⚡", tx: "공부한 날 중 <b>" + shortN + "일</b>은 1시간 미만으로 짧게 머물렀어요" });
+    if (shortN > 0) items.push({ ic: "⚡", tx: "학습한 날 중 <b>" + shortN + "일</b>은 체류 시간이 1시간 미만입니다" });
 
     // 6) 최장일
-    if (m.maxDay) items.push({ ic: "🔥", tx: "가장 오래 공부한 날은 <b>" + (+m.maxDay.date.slice(5, 7)) + "/" + (+m.maxDay.date.slice(8)) + "</b>, <b>" + fmtHM(m.maxDay.netSec) + "</b>이었어요" });
+    if (m.maxDay) items.push({ ic: "🔥", tx: "가장 오래 공부한 날은 <b>" + (+m.maxDay.date.slice(5, 7)) + "/" + (+m.maxDay.date.slice(8)) + "</b>, <b>" + fmtHM(m.maxDay.netSec) + "</b>입니다" });
 
     // 7) 임시 집계 안내
-    if (m.provisionalDays > 0) items.push({ ic: "⚠️", tx: "<b>" + m.provisionalDays + "일</b>은 퇴실 태그 누락으로 임시 집계(체류 기준)라 실제보다 길 수 있어요 — 보정 시 정확해져요" });
+    if (m.provisionalDays > 0) items.push({ ic: "⚠️", tx: "<b>" + m.provisionalDays + "일</b>은 퇴실 기록 확인이 필요합니다. 확인 후 시간이 더 정확해집니다" });
 
     var sec = el("section", "insights");
-    sec.appendChild(el("h3", null, "✨ 이번 달 한눈에 보기"));
+    sec.appendChild(el("h3", null, "이번 달 한눈에 보기"));
     var list = el("div", "insight-list");
     items.forEach(function (it) {
       var row = el("div", "insight");
@@ -660,13 +696,13 @@
     var m = currentMonth();
     var prev = computeMonth(state.student, prevYM(ym));
     var sec = el("section");
-    sec.appendChild(el("h3", null, "📋 핵심 지표"));
+    sec.appendChild(el("h3", null, "핵심 지표"));
     function kv(k, v) { sec.appendChild(el("div", "kv", '<span class="k">' + k + '</span><span class="v">' + v + "</span>")); }
-    kv("총 순공부시간", fmtHM(m.totalNetSec) + " " + deltaHtml(m.totalNetSec, prev ? prev.totalNetSec : null));
+    kv("순공부시간", fmtHM(m.totalNetSec) + " " + deltaHtml(m.totalNetSec, prev ? prev.totalNetSec : null));
     kv("출석일수", m.attendanceDays + " / " + m.openDays + "일");
-    kv("공부 인정일", m.recognizedDays + "일");
-    kv("임시 집계(보정 전)", m.provisionalDays + "일");
-    kv("공부한 날 하루 평균", fmtHM(m.dailyAvgSec));
+    kv("학습일", m.recognizedDays + "일");
+    kv("확인 필요", m.provisionalDays + "일");
+    kv("학습일 하루 평균", fmtHM(m.dailyAvgSec));
     if (m.maxDay) {
       var md = m.maxDay.date;
       kv("가장 오래 공부한 날", (+md.slice(5, 7)) + "/" + (+md.slice(8)) + " (" + fmtHM(m.maxDay.netSec) + ")");
@@ -696,6 +732,7 @@
     $("login-form").addEventListener("submit", handleLogin);
     $("btn-logout").addEventListener("click", function () {
       state.student = null;
+      clearSession();
       $("in-name").value = ""; $("in-phone").value = "";
       showView("view-login");
     });
@@ -713,6 +750,7 @@
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
 
     showView("view-login");
+    restoreSession(); // 저장된 로그인 있으면 자동 복원(새로고침 유지)
   }
 
   if (!DATA || !DATA.students) {

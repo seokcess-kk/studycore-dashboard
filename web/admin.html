@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>원장용 · 퇴실 미체크 보정</title>
+  <title>스터디코어 관리자</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="admin.css" />
 </head>
@@ -11,16 +11,15 @@
   <div class="admin-wrap">
     <header class="admin-top">
       <div>
-        <h1>🛠️ 원장 관리 <span class="tag">원장용</span></h1>
-        <p class="admin-sub">출결 엑셀을 업로드하고, 자동퇴장으로 누락된 공부시간을 보정합니다.</p>
+        <h1>관리자</h1>
       </div>
-      <a class="btn-ghost" href="index.html">학부모 화면 →</a>
+      <a class="btn-ghost" href="index.html">리포트 화면</a>
     </header>
 
     <!-- 원장 로그인 게이트 (서버 모드에서만) -->
     <section id="admin-auth" class="auth-card" hidden>
-      <h2>🔐 원장 로그인</h2>
-      <p class="auth-sub">등록된 관리자 계정으로 로그인해야 업로드·보정이 가능합니다.</p>
+      <h2>관리자 로그인</h2>
+      <p class="auth-sub">계정 확인 후 데이터를 관리할 수 있습니다.</p>
       <form id="auth-form" autocomplete="on">
         <label><span>이메일</span><input type="email" id="auth-email" required /></label>
         <label><span>비밀번호</span><input type="password" id="auth-pw" required /></label>
@@ -32,15 +31,13 @@
     <div id="admin-main">
     <!-- 엑셀 업로드 -->
     <section class="upload-card">
-      <h2>📤 출결 엑셀 업로드</h2>
-      <p class="upload-desc">매월 받은 입·출 기록 엑셀(.xlsx)을 올리면 대시보드에 반영됩니다.
-        같은 월을 다시 올리면 그 달 데이터가 갱신되고, 다른 달을 올리면 누적되어 <b>전월 대비</b>가 켜집니다.</p>
+      <h2>출결 엑셀 업로드</h2>
       <div class="upload-drop" id="upload-drop">
         <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
         <div class="drop-inner">
           <div class="drop-icon">📁</div>
-          <button class="btn-primary" id="btn-pick" type="button">엑셀 파일 선택</button>
-          <div class="drop-hint">또는 파일을 여기로 끌어다 놓기 (.xlsx)</div>
+          <button class="btn-primary" id="btn-pick" type="button">파일 선택</button>
+          <div class="drop-hint">.xlsx 파일을 끌어다 놓을 수도 있습니다</div>
           <div class="upload-fname" id="upload-fname"></div>
         </div>
       </div>
@@ -51,17 +48,13 @@
 
     <!-- 학생 명부(연락처·프로필) 업로드 -->
     <section class="upload-card">
-      <h2>📇 학생 명부 업로드 <span class="tag">연락처·프로필</span></h2>
-      <p class="upload-desc">학생 명부 엑셀(.xlsx)을 올리면 <b>로그인용 전화번호</b>(학생·보호자 둘 중 아무 뒷 4자리나 허용)와
-        학년·학교·상태 등 <b>프로필</b>이 반영됩니다. 출결 기록이 아직 없는 신규생도 등록되어 로그인할 수 있습니다.</p>
-      <p class="upload-desc" style="margin-top:-4px">
-        양식 컬럼: 이름 · 연락처 · 보호자 연락처 · 상태 · 좌석 · 성별 · 생년월일 · 학년 · 학교 · 주소1 · 주소2 · 등록일 · 퇴원일</p>
+      <h2>학생 명부 업로드</h2>
       <div class="upload-drop" id="roster-drop">
         <input type="file" id="roster-input" accept=".xlsx,.xls" hidden />
         <div class="drop-inner">
           <div class="drop-icon">📇</div>
-          <button class="btn-primary" id="roster-pick" type="button">명부 파일 선택</button>
-          <div class="drop-hint">또는 파일을 여기로 끌어다 놓기 (.xlsx)</div>
+          <button class="btn-primary" id="roster-pick" type="button">파일 선택</button>
+          <div class="drop-hint">.xlsx 파일을 끌어다 놓을 수도 있습니다</div>
           <div class="upload-fname" id="roster-fname"></div>
         </div>
       </div>
@@ -69,20 +62,20 @@
       <div id="roster-preview" class="upload-preview" hidden></div>
     </section>
 
-    <h2 class="section-h">⚠️ 퇴실 미체크 보정</h2>
+    <h2 class="section-h">퇴실 미체크 확인</h2>
     <div class="admin-stats" id="admin-stats"></div>
 
     <div class="admin-toolbar">
-      <input type="search" id="admin-search" class="admin-search" placeholder="🔍 학생 이름 검색" />
+      <input type="search" id="admin-search" class="admin-search" placeholder="학생 이름 검색" />
       <div class="admin-toolbar-right">
         <select id="admin-sort" title="정렬">
           <option value="name">이름순</option>
-          <option value="prov">임시시간 긴 순</option>
-          <option value="todo">미보정 많은 순</option>
+          <option value="prov">임시 시간 긴 순</option>
+          <option value="todo">확인 필요 많은 순</option>
           <option value="recent">최근 날짜순</option>
         </select>
         <select id="filter-month"></select>
-        <label class="chk"><input type="checkbox" id="hide-done" /> 완료 숨기기</label>
+        <label class="chk"><input type="checkbox" id="hide-done" /> 완료 항목 숨기기</label>
       </div>
     </div>
 
@@ -97,8 +90,7 @@
       <button class="modal-close" data-close="1">✕</button>
       <div id="corr-target" class="corr-target"></div>
 
-      <p class="corr-guide">아래 칸에 해당 세션의 <b>입장 / 외출 / 재입장 / 퇴장(강제퇴장)</b> 기록을
-        그대로 붙여넣으세요. 형식은 자유(탭·줄바꿈 무관)입니다.</p>
+      <p class="corr-guide">입장, 외출, 재입장, 퇴장 기록을 그대로 붙여넣으면 순공부시간을 계산합니다.</p>
       <textarea id="corr-input" rows="9" placeholder="예)
 입장        19:59:46
 외출 (외출)  20:20:47
@@ -111,8 +103,8 @@
 퇴장(강제퇴장) 0:55:05"></textarea>
 
       <div class="corr-actions">
-        <button class="btn-primary" id="btn-calc">계산하기</button>
-        <button class="btn-ghost" id="btn-clear" hidden>저장 삭제</button>
+        <button class="btn-primary" id="btn-calc">계산</button>
+        <button class="btn-ghost" id="btn-clear" hidden>저장값 삭제</button>
       </div>
 
       <div id="corr-result" class="corr-result" hidden></div>

@@ -70,7 +70,9 @@ async function parentTest() {
       getReport: (name, phone) => { getReportArgs = { name, phone }; return Promise.resolve(name === "정훈" && phone === "9402" ? REPORT : null); },
     },
   };
-  const ctx = { window: windowObj, document: doc, Date, Math, console, setImmediate };
+  const pls = {};
+  const localStorage = { getItem: k => (k in pls ? pls[k] : null), setItem: (k, v) => { pls[k] = String(v); }, removeItem: k => { delete pls[k]; } };
+  const ctx = { window: windowObj, document: doc, Date, Math, console, setImmediate, localStorage };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(WEB, "aggregate.js"), "utf8"), ctx);
   vm.runInContext(fs.readFileSync(path.join(WEB, "corrections.js"), "utf8"), ctx);
@@ -95,6 +97,24 @@ async function parentTest() {
   // 월간 상세도 무오류
   fire(reg["btn-monthly"], "click");
   assert(reg["view-monthly"].classList.contains("active"), "월간 상세 렌더");
+
+  // 보정 반영: RPC는 보정을 '날짜' 키로 줌 → 재조회 시 즉시 확정(⚠️→✓)
+  REPORT.corrections = { "2026-04-02": { netSec: 12769, totalSec: 17719, excludedSec: 4950, outings: 4, firstIn: "19:59:46", lastOut: "00:55:05", events: [] } };
+  reg["in-name"].value = "정훈"; reg["in-phone"].value = "9402";
+  fire(reg["login-form"], "submit"); await tick();
+  assert(countByHtml(reg["calendar"], "⚠️") === 0, "보정 후 잠정(⚠️) 0개");
+  assert(countByHtml(reg["calendar"], "✓") >= 1, "보정 후 확정(✓) 표시");
+  REPORT.corrections = {}; // 원복(admin 테스트 영향 방지)
+
+  // 세션 유지: 로그인 저장 확인 + '새로고침'(동일 localStorage, 새 컨텍스트) 자동 복원
+  assert(!!pls["studycore_session"], "로그인 세션 저장됨");
+  const { reg: reg2, doc: doc2 } = mkDoc(PIDS, ["view-login", "view-calendar", "view-monthly"]);
+  const ctx2 = { window: { scrollTo() {}, location: windowObj.location, SCApi: windowObj.SCApi }, document: doc2, Date, Math, console, setImmediate, localStorage };
+  vm.createContext(ctx2);
+  ["aggregate.js", "corrections.js", "app.js"].forEach(f => vm.runInContext(fs.readFileSync(path.join(WEB, f), "utf8"), ctx2));
+  await tick();
+  assert(reg2["view-calendar"].classList.contains("active"), "새로고침 시 세션 자동 복원(로그인 유지)");
+  assert(reg2["cal-student"].textContent.indexOf("정훈") >= 0, "복원된 학생: " + reg2["cal-student"].textContent);
 }
 
 async function adminTest() {
