@@ -50,14 +50,15 @@
 
   function renderStats(flags) {
     var done = flags.filter(function (f) { return f.corrected; }).length;
-    var students = {};
-    flags.forEach(function (f) { students[f.name] = 1; });
+    var remain = flags.length - done;
     var box = $("admin-stats");
     box.innerHTML = "";
-    function stat(v, l, cls) { var c = el("div", "astat " + (cls || "")); c.appendChild(el("div", "v", v)); c.appendChild(el("div", "l", l)); return c; }
-    box.appendChild(stat(flags.length, "확인 대상", flags.length ? "" : "done"));
-    box.appendChild(stat(done, "확인 완료", "done"));
-    box.appendChild(stat(flags.length - done, "남은 항목", (flags.length - done) ? "todo" : "done"));
+    // 목록은 완료 건을 빼고 보여주므로, 통계도 "남은 항목"만 표기(혼란 방지).
+    var c = el("div", "astat solo " + (remain ? "todo" : "done"));
+    c.appendChild(el("div", "v", remain));
+    c.appendChild(el("div", "l", remain ? "확인 필요 (남은 항목)" : "확인할 항목 없음 🎉"));
+    if (done) c.appendChild(el("div", "l-sub", "지금까지 확인 완료 " + done + "건"));
+    box.appendChild(c);
   }
 
   function renderList() {

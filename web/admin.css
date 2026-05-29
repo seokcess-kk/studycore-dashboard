@@ -46,12 +46,17 @@ body.admin { background: #f4f2ee; }
 .loaded-info button { border: 1px solid #e3e0da; background: #fff; color: #6b7178; border-radius: 9px; padding: 6px 11px; font-size: 12px; cursor: pointer; }
 .section-h { font-size: 16px; margin: 4px 0 12px; }
 
-.admin-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.admin-stats { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
 .astat { background: #fff; border: 1px solid #e3e0da; border-radius: 12px; box-shadow: 0 1px 3px rgba(16,48,80,.06); padding: 14px; text-align: center; }
 .astat .v { font-size: 24px; font-weight: 700; }
 .astat .l { font-size: 12px; color: #6b7178; margin-top: 2px; }
 .astat.done .v { color: #1f8a5b; }
 .astat.todo .v { color: #d97706; }
+/* 단일 요약 카드(남은 항목): 가로 배치 */
+.astat.solo { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; text-align: left; padding: 14px 16px; }
+.astat.solo .v { font-size: 26px; }
+.astat.solo .l { font-size: 13px; margin-top: 0; }
+.astat .l-sub { width: 100%; font-size: 12px; color: #6b7178; margin-top: 4px; }
 
 .admin-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
 .admin-toolbar .admin-toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

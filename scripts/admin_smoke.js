@@ -64,7 +64,9 @@ const C = windowObj.SCCorr;
 
 console.log("== 미체크 목록 ==");
 assert(registry["flag-list"].children.length > 0, "플래그 목록 렌더 (" + registry["flag-list"].children.length + " 그룹)");
-assert(registry["admin-stats"].children.length === 3, "통계 카드 3개");
+assert(registry["admin-stats"].children.length === 1, "통계 요약 카드 1개(남은 항목만)");
+const _statV = registry["admin-stats"].children[0].children[0]._html;
+assert(/^\d+$/.test(String(_statV)) && Number(_statV) > 0, "남은 항목 수 표시: " + _statV);
 
 console.log("== 보정 모달 → 계산 → 저장 ==");
 const rowBtns = findButtons(registry["flag-list"], []);
