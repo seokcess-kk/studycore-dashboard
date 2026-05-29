@@ -95,7 +95,7 @@ registry["in-name"].value = ro.name;
 registry["in-phone"].value = ro.loginPhones[0];
 fire(registry["login-form"], "submit");
 assert(registry["view-calendar"].classList.contains("active"), ro.name + " 로그인→달력(빈 상태)");
-assert(registry["calendar"]._html.indexOf("아직 출결 기록이 없어요") >= 0, "‘출결 기록 없음’ 안내 표시");
+assert(registry["calendar"]._html.indexOf("empty-data") >= 0, "‘출결/학습 기록 없음’ 빈 상태 안내 표시");
 assert(registry["calendar"]._html.indexOf(ro.profile.grade || "@@") >= 0 || true, "프로필 헤더는 표시");
 assert(registry["cal-meta"].textContent.length > 0, "빈 상태에서도 프로필 헤더 노출: " + registry["cal-meta"].textContent);
 

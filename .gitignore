@@ -9,6 +9,9 @@ studycore-dataset.json
 node_modules/
 .vercel/
 
+# verify/e2e 스크린샷 산출물 (원장 화면엔 학생 PII 가능 · 용량 큼)
+.e2e-artifacts/
+
 # OS/에디터
 .DS_Store
 Thumbs.db
