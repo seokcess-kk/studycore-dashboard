@@ -1,0 +1,14 @@
+# 실제 학생 개인정보 — 레포/배포에 올리지 않음 (운영 데이터는 Supabase에만)
+inout_raw.xlsx
+~$*.xlsx
+studycore-dataset.json
+*.local.js
+
+# 의존성/빌드
+node_modules/
+.vercel/
+
+# OS/에디터
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,422 @@
+/* 원장용 퇴실 미체크 보정 페이지 */
+(function () {
+  "use strict";
+  var REMOTE = !!(window.SCApi && window.SCApi.enabled());
+  var DATA = REMOTE
+    ? { months: [], openDays: {}, classAverages: {}, students: [] }
+    : ((window.SCDataset && window.SCDataset.active()) || window.STUDYCORE_DATA);
+  var C = window.SCCorr;
+  var corrMap = {}; // 원격 모드 보정 캐시
+  function getCorr(key, date) { return REMOTE ? (corrMap[key + "|" + date] || null) : (C ? C.get(key, date) : null); }
+  var DOW = ["일", "월", "화", "수", "목", "금", "토"];
+  var AUTO = { "자동퇴장": 1, "미복귀": 1 };
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function dowOf(d) { return new Date(d + "T00:00:00").getDay(); }
+  function mmdd(d) { return (+d.slice(5, 7)) + "월 " + (+d.slice(8)) + "일"; }
+  function dur(sec) { var m = Math.round(sec / 60); if (m >= 60) return Math.floor(m / 60) + "시간 " + (m % 60) + "분"; return m + "분"; }
+
+  var monthFilter = "all";
+  var hideDone = false;
+  var current = null; // {name, date}
+  var pendingBuilt = null; // 업로드 파싱 결과 대기
+
+  /* 미체크 플래그 수집 */
+  function collectFlags() {
+    var flags = [];
+    DATA.students.forEach(function (s) {
+      Object.keys(s.months).forEach(function (ym) {
+        if (monthFilter !== "all" && ym !== monthFilter) return;
+        var days = s.months[ym].days;
+        Object.keys(days).forEach(function (date) {
+          var d = days[date];
+          var autoSess = d.sessions.filter(function (x) { return AUTO[x.reason]; });
+          if (autoSess.length) {
+            var key = s.key || s.name;
+            flags.push({
+              key: key, name: s.name, seat: s.seat, date: date, ym: ym,
+              inTime: autoSess[0].in, outTime: autoSess[0].out,
+              reason: autoSess[0].reason,
+              provSec: autoSess[0].netSec || 0,
+              corrected: !!getCorr(key, date),
+            });
+          }
+        });
+      });
+    });
+    return flags;
+  }
+
+  function renderStats(flags) {
+    var done = flags.filter(function (f) { return f.corrected; }).length;
+    var students = {};
+    flags.forEach(function (f) { students[f.name] = 1; });
+    var box = $("admin-stats");
+    box.innerHTML = "";
+    function stat(v, l, cls) { var c = el("div", "astat " + (cls || "")); c.appendChild(el("div", "v", v)); c.appendChild(el("div", "l", l)); return c; }
+    box.appendChild(stat(flags.length, "미체크 건수", flags.length ? "" : "done"));
+    box.appendChild(stat(done, "보정 완료", "done"));
+    box.appendChild(stat(flags.length - done, "남은 보정", (flags.length - done) ? "todo" : "done"));
+  }
+
+  function renderList() {
+    var flags = collectFlags();
+    renderStats(flags);
+
+    var term = ($("admin-search").value || "").trim().toLowerCase();
+    var sortBy = $("admin-sort").value || "name";
+
+    var byKey = {};
+    flags.forEach(function (f) {
+      if (hideDone && f.corrected) return;
+      if (term && f.name.toLowerCase().indexOf(term) === -1) return;
+      (byKey[f.key] = byKey[f.key] || []).push(f);
+    });
+
+    var wrap = $("flag-list");
+    wrap.innerHTML = "";
+    var keys = Object.keys(byKey);
+    if (!keys.length) { wrap.appendChild(el("p", "empty-note", "표시할 항목이 없습니다. 🎉")); return; }
+
+    // 그룹별 집계(정렬 기준): 임시시간 합·미보정 수·최근 날짜
+    var aggOf = {};
+    keys.forEach(function (k) {
+      var prov = 0, todo = 0, latest = "";
+      byKey[k].forEach(function (i) {
+        prov += i.provSec || 0;
+        if (!i.corrected) todo++;
+        if (i.date > latest) latest = i.date;
+      });
+      aggOf[k] = { prov: prov, todo: todo, latest: latest };
+    });
+    keys.sort(function (a, b) {
+      if (sortBy === "prov") return aggOf[b].prov - aggOf[a].prov;
+      if (sortBy === "todo") return (aggOf[b].todo - aggOf[a].todo) || (byKey[b].length - byKey[a].length);
+      if (sortBy === "recent") return aggOf[a].latest < aggOf[b].latest ? 1 : aggOf[a].latest > aggOf[b].latest ? -1 : 0;
+      return byKey[a][0].name.localeCompare(byKey[b][0].name, "ko");
+    });
+
+    keys.forEach(function (key) {
+      var items = byKey[key].slice().sort(function (a, b) {
+        if (sortBy === "prov") return (b.provSec || 0) - (a.provSec || 0);
+        if (sortBy === "recent") return a.date < b.date ? 1 : -1;
+        return a.date < b.date ? -1 : 1;
+      });
+      var doneN = items.filter(function (i) { return i.corrected; }).length;
+      var label = items[0].name + (key.indexOf("#") >= 0
+        ? " <small style='color:#9aa1ad'>(좌석 " + items[0].seat + ")</small>" : "");
+      var g = el("details", "flag-group");
+      g.open = true;
+      var sum = el("summary", null,
+        "<span>" + label + "</span><span class='gcount'>" + items.length + "건 · 보정 " + doneN + "</span>");
+      g.appendChild(sum);
+      items.forEach(function (f) {
+        var row = el("div", "flag-row");
+        var corr = getCorr(f.key, f.date);
+        row.appendChild(el("div", "fr-date", mmdd(f.date) + " <small style='color:#9aa1ad'>(" + DOW[dowOf(f.date)] + ")</small>"));
+        row.appendChild(el("div", "fr-mid", "입장 " + (f.inTime || "-") + " → " + f.reason + " " + (f.outTime || "-")));
+        var st = el("div", "fr-status " + (f.corrected ? "done" : "todo"),
+          f.corrected ? ("✓ 순공부 " + C.fmtHM(corr.netSec)) : ("임시 " + C.fmtHM(f.provSec)));
+        row.appendChild(st);
+        var btn = el("button", f.corrected ? "done" : "", f.corrected ? "수정" : "보정");
+        btn.addEventListener("click", function () { openModal(f); });
+        row.appendChild(btn);
+        g.appendChild(row);
+      });
+      wrap.appendChild(g);
+    });
+  }
+
+  /* ---- 보정 모달 ---- */
+  function openModal(f) {
+    current = f;
+    $("corr-target").innerHTML = f.name + (f.key.indexOf("#") >= 0 ? " (좌석 " + f.seat + ")" : "") +
+      " · " + mmdd(f.date) +
+      " <small>(입장 " + (f.inTime || "-") + " → 강제퇴장 " + (f.outTime || "-") + ")</small>";
+    $("corr-input").value = "";
+    $("corr-result").hidden = true;
+    $("corr-result").className = "corr-result";
+    var existing = getCorr(f.key, f.date);
+    $("btn-clear").hidden = !existing;
+    if (existing && existing.events) {
+      // 기존 보정 내용을 텍스트로 복원해 편집 가능하게
+      $("corr-input").value = existing.events.map(function (e) {
+        var label = e.type === "entry" ? "입장" : e.type === "reentry" ? "재입장" : e.type === "out" ? "외출" : "강제퇴장";
+        return label + "\t" + e.clock;
+      }).join("\n");
+      showResult(C.parseEventLog($("corr-input").value));
+    }
+    $("corr-modal").hidden = false;
+  }
+  function closeModal() { $("corr-modal").hidden = true; current = null; }
+
+  function showResult(r) {
+    var box = $("corr-result");
+    box.hidden = false;
+    if (!r.ok) { box.className = "corr-result err"; box.textContent = "⚠️ " + r.error; return; }
+    box.className = "corr-result";
+    box.innerHTML = "";
+
+    var hero = el("div", "cr-hero");
+    hero.innerHTML =
+      "<div class='c net'><div class='l'>순공부</div><div class='v'>" + C.fmtHM(r.netSec) + "</div></div>" +
+      "<div class='c'><div class='l'>총 체류</div><div class='v'>" + C.fmtHM(r.totalSec) + "</div></div>" +
+      "<div class='c'><div class='l'>외출(제외)</div><div class='v'>" + C.fmtHM(r.excludedSec) + "</div></div>";
+    box.appendChild(hero);
+
+    // 구간 분해
+    var steps = el("div", "cr-steps");
+    for (var i = 0; i < r.events.length - 1; i++) {
+      var a = r.events[i], b = r.events[i + 1];
+      var study = (a.type === "entry" || a.type === "reentry");
+      var step = el("div", "cr-step " + (study ? "study" : "away"));
+      step.innerHTML = "<span><span class='tag2'>" + (study ? "공부" : "외출") + "</span> " +
+        a.clock + " → " + b.clock + "</span><span>" + dur(b.sec - a.sec) + "</span>";
+      steps.appendChild(step);
+    }
+    box.appendChild(steps);
+
+    var save = el("div", "cr-save");
+    var btn = el("button", "btn-primary", "이 값으로 저장");
+    btn.addEventListener("click", function () {
+      var key = current.key, date = current.date;
+      var payload = {
+        netSec: r.netSec, totalSec: r.totalSec, excludedSec: r.excludedSec,
+        outings: r.outings, firstIn: r.firstIn, lastOut: r.lastOut, events: r.events,
+      };
+      if (REMOTE) {
+        btn.disabled = true;
+        window.SCApi.saveCorrection(key, date, payload).then(function () {
+          corrMap[key + "|" + date] = payload; closeModal(); renderList();
+        }).catch(function (ex) { btn.disabled = false; window.alert("저장 실패: " + (ex.message || ex)); });
+      } else {
+        C.save(key, date, payload); closeModal(); renderList();
+      }
+    });
+    save.appendChild(btn);
+    box.appendChild(save);
+  }
+
+  function initMonthFilter() {
+    var sel = $("filter-month");
+    sel.innerHTML = "<option value='all'>전체 월</option>";
+    DATA.months.forEach(function (m) {
+      var o = document.createElement("option"); o.value = m;
+      o.textContent = (+m.slice(0, 4)) + "년 " + (+m.slice(5, 7)) + "월";
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change", function () { monthFilter = sel.value; renderList(); });
+  }
+
+  /* ---------- 엑셀 업로드 ---------- */
+  function ymLabel(m) { return (+m.slice(0, 4)) + "년 " + (+m.slice(5, 7)) + "월"; }
+  function uMsg(text, cls) {
+    var box = $("upload-msg");
+    if (!text) { box.hidden = true; return; }
+    box.hidden = false; box.className = "upload-msg " + (cls || ""); box.textContent = text;
+  }
+  function renderLoadedInfo() {
+    var box = $("loaded-info");
+    if (REMOTE) {
+      box.innerHTML = "";
+      var months = (DATA.months || []).map(ymLabel).join(", ") || "없음";
+      box.appendChild(el("div", null, "서버 반영 데이터: <b>" + months + "</b> <span class='badge-src'>Supabase</span>"));
+      var right = el("div", null, "");
+      var out = el("button", null, "로그아웃");
+      out.addEventListener("click", function () { window.SCApi.adminSignOut().then(function () { window.location.reload(); }); });
+      right.appendChild(out);
+      box.appendChild(right);
+      return;
+    }
+    var active = window.SCDataset.active();
+    var uploaded = window.SCDataset.isUploaded();
+    var months = (active && active.months || []).map(ymLabel).join(", ") || "없음";
+    box.innerHTML = "";
+    var left = el("div", null, "현재 반영된 데이터: <b>" + months + "</b> " +
+      "<span class='badge-src" + (uploaded ? "" : " bundled") + "'>" + (uploaded ? "업로드본" : "기본 샘플") + "</span>");
+    box.appendChild(left);
+    var right = el("div", null, "");
+    var exportBtn = el("button", null, "💾 데이터 내보내기(JSON)");
+    exportBtn.addEventListener("click", function () {
+      var data = window.SCDataset.active() || {};
+      data._exportedMonths = data.months;
+      data._corrections = window.SCCorr ? window.SCCorr.loadAll() : {};
+      var blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "studycore-dataset.json";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+    right.appendChild(exportBtn);
+    if (uploaded) {
+      var btn = el("button", null, "초기화(샘플로 되돌리기)");
+      btn.addEventListener("click", function () {
+        if (window.confirm("업로드한 데이터를 모두 지우고 기본 샘플로 되돌릴까요? (보정 기록은 유지됩니다)")) {
+          window.SCDataset.reset(); window.location.reload();
+        }
+      });
+      right.appendChild(btn);
+    }
+    box.appendChild(right);
+  }
+  function showPreview(built) {
+    var s = built.summary;
+    var box = $("upload-preview");
+    box.hidden = false;
+    box.innerHTML = "";
+    var grid = el("div", "up-grid");
+    function cell(v, l, warn) {
+      var c = el("div"); c.appendChild(el("div", "v" + (warn ? " warn" : ""), v)); c.appendChild(el("div", "l", l)); return c;
+    }
+    grid.appendChild(cell(s.months.map(ymLabel).join(", "), "감지된 월"));
+    grid.appendChild(cell(s.studentCount, "학생 수"));
+    grid.appendChild(cell(s.rowCount, "기록 행"));
+    grid.appendChild(cell(s.autoCount, "자동퇴장(보정대상)", s.autoCount > 0));
+    box.appendChild(grid);
+
+    // 현재 반영된 데이터와 비교: 신규 월 vs 덮어쓰기 월
+    var active = REMOTE ? DATA : (window.SCDataset.active() || { months: [] });
+    var existing = {};
+    (active.months || []).forEach(function (m) { existing[m] = 1; });
+    var newMonths = s.months.filter(function (m) { return !existing[m]; });
+    var overMonths = s.months.filter(function (m) { return existing[m]; });
+
+    if (newMonths.length) {
+      box.appendChild(el("div", "up-note ok",
+        "🆕 <b>신규 추가</b> · " + newMonths.map(ymLabel).join(", ")));
+    }
+    if (overMonths.length) {
+      box.appendChild(el("div", "up-note warn",
+        "⚠️ <b>덮어쓰기</b> · " + overMonths.map(ymLabel).join(", ") +
+        " — 이미 반영된 데이터를 이 파일로 교체합니다. (보정 기록은 유지됩니다)"));
+    }
+
+    var apply = el("div", "up-apply");
+    var btn = el("button", "btn-primary", overMonths.length ? "덮어쓰고 반영하기" : "이 데이터 반영하기");
+    btn.addEventListener("click", function () {
+      if (overMonths.length &&
+        !window.confirm(overMonths.map(ymLabel).join(", ") + " 데이터를 덮어쓸까요?\n기존 보정 기록은 유지됩니다.")) return;
+      if (REMOTE) {
+        var base = { months: DATA.months, openDays: DATA.openDays, classAverages: DATA.classAverages, students: DATA.students.slice() };
+        var merged = window.SCIngest.merge(base, built.dataset);
+        merged.classAverages = window.SCAgg.computeClassAverages(merged, getCorr);
+        btn.disabled = true; uMsg("서버에 저장 중…", "");
+        window.SCApi.saveDataset(merged).then(function () {
+          uMsg("반영되었습니다. 새로고침합니다…", "ok");
+          window.setTimeout(function () { window.location.reload(); }, 700);
+        }).catch(function (ex) { btn.disabled = false; uMsg("서버 저장 실패: " + (ex.message || ex), "err"); });
+      } else {
+        var mergedL = window.SCIngest.merge(window.SCDataset.seed(), built.dataset);
+        window.SCDataset.save(mergedL);
+        uMsg("반영되었습니다. 화면을 새로고침합니다…", "ok");
+        window.setTimeout(function () { window.location.reload(); }, 600);
+      }
+    });
+    apply.appendChild(btn);
+    box.appendChild(apply);
+  }
+  function handleFile(file) {
+    if (!file) return;
+    if (!window.XLSX) { uMsg("엑셀 라이브러리를 불러오지 못했습니다.", "err"); return; }
+    $("upload-fname").textContent = "📄 " + file.name;
+    uMsg("", null); $("upload-preview").hidden = true; pendingBuilt = null;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        var wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+        var built = window.SCIngest.buildFromRows(rows);
+        if (!built.ok) { uMsg("⚠️ " + built.error, "err"); return; }
+        pendingBuilt = built;
+        showPreview(built);
+      } catch (err) { uMsg("엑셀을 읽지 못했습니다: " + err.message, "err"); }
+    };
+    reader.onerror = function () { uMsg("파일을 읽지 못했습니다.", "err"); };
+    reader.readAsArrayBuffer(file);
+  }
+  function setupUpload() {
+    var input = $("file-input"), drop = $("upload-drop");
+    $("btn-pick").addEventListener("click", function () { input.click(); });
+    input.addEventListener("change", function (e) { handleFile(e.target.files && e.target.files[0]); });
+    ["dragenter", "dragover"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("drag"); });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("drag"); });
+    });
+    drop.addEventListener("drop", function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      handleFile(f);
+    });
+    renderLoadedInfo();
+  }
+
+  // 데이터 준비된 뒤 화면 구성
+  function startApp() {
+    setupUpload();
+    initMonthFilter();
+    renderList();
+  }
+
+  function wireHandlers() {
+    $("hide-done").addEventListener("change", function (e) { hideDone = e.target.checked; renderList(); });
+    $("admin-search").addEventListener("input", function () { renderList(); });
+    $("admin-sort").addEventListener("change", function () { renderList(); });
+    $("btn-calc").addEventListener("click", function () { showResult(C.parseEventLog($("corr-input").value)); });
+    $("btn-clear").addEventListener("click", function () {
+      if (!current) return;
+      var key = current.key, date = current.date;
+      if (REMOTE) {
+        window.SCApi.removeCorrection(key, date).then(function () {
+          delete corrMap[key + "|" + date]; closeModal(); renderList();
+        }).catch(function (ex) { window.alert("삭제 실패: " + (ex.message || ex)); });
+      } else { C.remove(key, date); closeModal(); renderList(); }
+    });
+    $("corr-modal").addEventListener("click", function (e) { if (e.target.getAttribute("data-close")) closeModal(); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+  }
+
+  function afterLogin() {
+    return window.SCApi.loadAll().then(function (r) {
+      DATA = r.dataset; corrMap = r.corrections || {};
+      $("admin-auth").hidden = true; $("admin-main").hidden = false;
+      startApp();
+    }).catch(function (ex) {
+      var err = $("auth-error");
+      err.textContent = "데이터 로드 실패: " + (ex.message || ex); err.hidden = false;
+      $("admin-auth").hidden = false; $("admin-main").hidden = true;
+      var b = $("auth-btn"); if (b) b.disabled = false;
+      if (window.console) console.error(ex);
+    });
+  }
+
+  function init() {
+    wireHandlers();
+    if (!REMOTE) { startApp(); return; }
+
+    // 서버 모드: 로그인 게이트
+    $("admin-main").hidden = true;
+    $("admin-auth").hidden = false;
+    $("auth-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var email = $("auth-email").value.trim(), pw = $("auth-pw").value;
+      var err = $("auth-error"); err.hidden = true;
+      var b = $("auth-btn"); b.disabled = true;
+      window.SCApi.adminSignIn(email, pw).then(function () { return afterLogin(); })
+        .catch(function (ex) {
+          b.disabled = false;
+          err.textContent = "로그인 실패 — 이메일/비밀번호를 확인하세요.";
+          err.hidden = false; if (window.console) console.error(ex);
+        });
+    });
+    // 이미 로그인 세션이 있으면 바로 진입
+    window.SCApi.currentUser().then(function (u) { if (u) afterLogin(); });
+  }
+
+  if (!C) {
+    document.body.innerHTML = "<p style='padding:40px;text-align:center'>모듈 로드 실패</p>";
+  } else { init(); }
+})();

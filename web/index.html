@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>스터디코어 학습 리포트</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== 로그인 ===== -->
+  <section id="view-login" class="view active">
+    <div class="login-card">
+      <div class="brand">
+        <div class="brand-mark">📚</div>
+        <h1>스터디코어 학습 리포트</h1>
+        <p class="brand-sub">자녀의 한 달 공부 기록을 확인하세요</p>
+      </div>
+      <form id="login-form" autocomplete="off">
+        <label>
+          <span>학생 이름</span>
+          <input type="text" id="in-name" placeholder="예) 정훈" required />
+        </label>
+        <label>
+          <span>전화번호 뒷 4자리</span>
+          <input type="tel" id="in-phone" inputmode="numeric" maxlength="4"
+                 pattern="[0-9]{4}" placeholder="예) 9402" required />
+        </label>
+        <button type="submit" class="btn-primary">조회하기</button>
+        <p id="login-error" class="login-error" hidden></p>
+      </form>
+      <details class="demo-box" id="demo-box" hidden>
+        <summary>🔧 데모 계정 목록 (프로토타입용)</summary>
+        <p class="demo-hint">실제 서비스에서는 보이지 않습니다. 아래를 누르면 자동 입력됩니다.</p>
+        <div id="demo-list" class="demo-list"></div>
+        <p class="demo-hint" style="margin-top:10px"><a href="admin.html">🛠️ 원장용 퇴실 미체크 보정 페이지 →</a></p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===== 월 달력 ===== -->
+  <section id="view-calendar" class="view">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="student-name" id="cal-student"></div>
+        <div class="student-meta" id="cal-meta"></div>
+      </div>
+      <button class="btn-ghost" id="btn-logout">로그아웃</button>
+    </header>
+
+    <div class="month-nav">
+      <button class="nav-arrow" id="prev-month" aria-label="이전 달">‹</button>
+      <h2 id="cal-month-title"></h2>
+      <button class="nav-arrow" id="next-month" aria-label="다음 달">›</button>
+    </div>
+
+    <div id="data-status" class="data-status" hidden></div>
+
+    <div class="summary-grid" id="summary-grid"></div>
+
+    <div class="cal-legend">
+      <span><i class="dot dot-study"></i> 공부한 날</span>
+      <span><i class="dot dot-nocheck"></i> 임시(보정 전)</span>
+      <span><i class="dot dot-absent"></i> 결석</span>
+      <span><i class="chip-weekend">주말</i></span>
+    </div>
+
+    <div class="calendar" id="calendar"></div>
+
+    <div class="class-compare" id="class-compare"></div>
+
+    <button class="btn-primary wide" id="btn-monthly">📊 월간 상세 리포트 보기</button>
+  </section>
+
+  <!-- ===== 월간 상세 ===== -->
+  <section id="view-monthly" class="view">
+    <header class="topbar">
+      <button class="btn-ghost" id="btn-back-cal">‹ 달력으로</button>
+      <div class="topbar-title" id="monthly-title"></div>
+      <span></span>
+    </header>
+    <div id="monthly-body" class="monthly-body"></div>
+  </section>
+
+  <!-- ===== 일자 상세 (모달) ===== -->
+  <div id="day-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <button class="modal-close" data-close="1" aria-label="닫기">✕</button>
+      <div id="day-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="vendor/supabase.min.js"></script>
+  <script src="scapi.js"></script>
+  <script src="data.js"></script>
+  <script src="dataset.js"></script>
+  <script src="aggregate.js"></script>
+  <script src="corrections.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

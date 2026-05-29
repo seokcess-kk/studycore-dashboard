@@ -1,0 +1,686 @@
+/* 스터디코어 학습 리포트 — 프로토타입 (vanilla JS, 빌드 불필요) */
+(function () {
+  "use strict";
+
+  var REMOTE = !!(window.SCApi && window.SCApi.enabled());
+  var DATA = REMOTE
+    ? { months: [], openDays: {}, classAverages: {}, students: [], _remote: true }
+    : ((window.SCDataset && window.SCDataset.active()) || window.STUDYCORE_DATA);
+  var DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+  var state = { student: null, monthIdx: 0, corrections: {} };
+
+  /* ---------- 유틸 ---------- */
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, html) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+  // 초 -> "5시간 11분" / "11분" / "0분"
+  function fmtHM(sec) {
+    sec = sec || 0;
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    if (m === 60) { h += 1; m = 0; }
+    if (h > 0 && m > 0) return h + "시간 " + m + "분";
+    if (h > 0) return h + "시간";
+    return m + "분";
+  }
+  // 컴팩트 (달력 셀)
+  function fmtShort(sec) {
+    sec = sec || 0;
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    if (m === 60) { h += 1; m = 0; }
+    if (h > 0 && m > 0) return h + "h" + m + "m";
+    if (h > 0) return h + "h";
+    return m + "m";
+  }
+  function ymd(y, m, d) { return y + "-" + pad(m) + "-" + pad(d); }
+  function parseYM(ym) { return { y: +ym.slice(0, 4), m: +ym.slice(5, 7) }; }
+  function ymLabel(ym) { var p = parseYM(ym); return p.y + "년 " + p.m + "월"; }
+  function prevYM(ym) {
+    var p = parseYM(ym), m = p.m - 1, y = p.y;
+    if (m < 1) { m = 12; y -= 1; }
+    return y + "-" + pad(m);
+  }
+  function daysInMonth(ym) { var p = parseYM(ym); return new Date(p.y, p.m, 0).getDate(); }
+  function dowOf(dateStr) { return new Date(dateStr + "T00:00:00").getDay(); }
+  function isWeekendStr(dateStr) { var d = dowOf(dateStr); return d === 0 || d === 6; }
+
+  // 시각 "HH:MM:SS" -> 06:00 기준 분 (새벽<5시는 +24h)
+  function minsFrom6(t) {
+    if (!t) return null;
+    var p = t.split(":"), h = +p[0], m = +p[1];
+    if (h < 5) h += 24;
+    return (h * 60 + m) - 6 * 60;
+  }
+
+  function showView(id) {
+    var views = document.querySelectorAll(".view");
+    for (var i = 0; i < views.length; i++) views[i].classList.remove("active");
+    $(id).classList.add("active");
+    window.scrollTo(0, 0);
+  }
+
+  /* ---------- 로그인 ---------- */
+  // 데모 계정·원장 링크는 개발 환경(file://·localhost·?demo=1)에서만 노출.
+  // 운영 도메인(https 호스팅)에서는 숨겨 학부모에게 내부 도구가 보이지 않게 함.
+  function isDevMode() {
+    try {
+      var loc = window.location;
+      if (!loc) return false;
+      if ((loc.search || "").indexOf("demo=1") >= 0) return true;
+      if (loc.protocol === "file:") return true;
+      var h = loc.hostname || "";
+      return (h === "" || h === "localhost" || h === "127.0.0.1" || h === "0.0.0.0");
+    } catch (e) { return false; }
+  }
+
+  function renderDemoList() {
+    var box = $("demo-list");
+    box.innerHTML = "";
+    DATA.students.slice().sort(function (a, b) {
+      return a.name.localeCompare(b.name, "ko");
+    }).forEach(function (s) {
+      var chip = el("button", "demo-chip", s.name + " <b>" + s.phoneLast4 + "</b>");
+      chip.type = "button";
+      chip.addEventListener("click", function () {
+        $("in-name").value = s.name;
+        $("in-phone").value = s.phoneLast4;
+      });
+      box.appendChild(chip);
+    });
+  }
+
+  function enterStudent(student) {
+    state.student = student;
+    _caCache = null;
+    var idx = DATA.months.length - 1;
+    while (idx > 0 && !student.months[DATA.months[idx]]) idx--;
+    state.monthIdx = idx;
+    renderCalendar();
+    showView("view-calendar");
+  }
+
+  function handleLogin(e) {
+    e.preventDefault();
+    var name = $("in-name").value.trim();
+    var phone = $("in-phone").value.trim();
+    var err = $("login-error");
+    err.hidden = true;
+
+    if (REMOTE) {
+      var submit = $("login-form").querySelector("button[type=submit]");
+      if (submit) submit.disabled = true;
+      window.SCApi.getReport(name, phone).then(function (res) {
+        if (submit) submit.disabled = false;
+        if (!res || !res.student) {
+          err.textContent = "등록된 학생을 찾을 수 없거나 전화번호 뒷 4자리가 일치하지 않습니다.";
+          err.hidden = false;
+          return;
+        }
+        DATA = {
+          months: res.months || [], openDays: res.openDays || {},
+          classAverages: res.classAverages || {}, students: [res.student], _remote: true,
+        };
+        state.corrections = res.corrections || {};
+        enterStudent(res.student);
+      }).catch(function (ex) {
+        if (submit) submit.disabled = false;
+        err.textContent = "조회 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+        err.hidden = false;
+        if (window.console) console.error(ex);
+      });
+      return;
+    }
+
+    // 로컬 모드(localStorage/번들)
+    var matches = DATA.students.filter(function (s) { return s.name === name; });
+    var student = matches.filter(function (s) { return s.phoneLast4 === phone; })[0];
+    if (!student) {
+      err.textContent = matches.length
+        ? "전화번호 뒷 4자리가 일치하지 않습니다."
+        : "등록된 학생을 찾을 수 없습니다.";
+      err.hidden = false;
+      return;
+    }
+    enterStudent(student);
+  }
+
+  /* ---------- 집계 (보정 반영) — 공용 모듈 SCAgg 사용 ---------- */
+  var _caCache = null;
+  // 보정 조회기: 원격 모드는 서버가 준 맵, 로컬 모드는 SCCorr(localStorage)
+  function corrGetter(key, date) {
+    if (DATA._remote) return (state.corrections && state.corrections[key + "|" + date]) || null;
+    return window.SCCorr ? window.SCCorr.get(key, date) : null;
+  }
+  function computeMonth(student, ym) {
+    return window.SCAgg.computeMonth(student, ym, DATA, corrGetter);
+  }
+  function computeClassAverages(ym) {
+    if (DATA._remote) return DATA.classAverages[ym] || { studentCount: 0, totalNetSec: 0, dailyAvgSec: 0 };
+    if (!_caCache) _caCache = window.SCAgg.computeClassAverages(DATA, corrGetter);
+    return _caCache[ym] || { studentCount: 0, totalNetSec: 0, dailyAvgSec: 0 };
+  }
+
+  /* ---------- 월 달력 ---------- */
+  function currentMonthKey() { return DATA.months[state.monthIdx]; }
+  function currentMonth() { return computeMonth(state.student, currentMonthKey()); }
+
+  function deltaHtml(cur, prev, fmt) {
+    if (prev == null) return '<span class="delta flat">지난달 데이터 없음</span>';
+    if (prev === 0) return '<span class="delta flat">—</span>';
+    var diff = cur - prev;
+    var pct = Math.round((diff / prev) * 100);
+    var cls = diff > 0 ? "up" : (diff < 0 ? "down" : "flat");
+    var arrow = diff > 0 ? "▲" : (diff < 0 ? "▼" : "·");
+    return '<span class="delta ' + cls + '">' + arrow + " " + Math.abs(pct) + "%</span>";
+  }
+
+  // 요약 카드 위 데이터 상태 배너 (확정/임시/보정 현황)
+  function renderDataStatus(m) {
+    var box = $("data-status");
+    if (!box) return;
+    box.innerHTML = "";
+    box.className = "data-status";
+    if (m.provisionalDays > 0) {
+      box.classList.add("warn");
+      var parts = ["<b>임시 집계 " + m.provisionalDays + "일 포함</b>"];
+      if (m.correctedDays > 0) parts.push("보정 완료 " + m.correctedDays + "일");
+      box.innerHTML = '<span class="ds-ic">⚠️</span><span class="ds-tx">' + parts.join(" · ") +
+        " — 퇴실 태그 누락(자동퇴장)으로 체류시간(입장~최종 퇴장)을 잠정 반영했습니다. 외출이 빠지지 않아 실제보다 길 수 있고, 원장 보정 후 확정됩니다.</span>";
+    } else {
+      box.classList.add("ok");
+      var t = m.correctedDays > 0 ? ("확정 집계 · 보정 완료 " + m.correctedDays + "일") : "확정 집계";
+      box.innerHTML = '<span class="ds-ic">✓</span><span class="ds-tx"><b>' + t +
+        "</b> — 모든 출결 기록이 확정되었습니다.</span>";
+    }
+    box.hidden = false;
+  }
+
+  function renderSummary() {
+    var ym = currentMonthKey();
+    var m = currentMonth();
+    var prev = computeMonth(state.student, prevYM(ym)); // 보정 반영해 전월 재계산
+    var grid = $("summary-grid");
+    grid.innerHTML = "";
+
+    function card(label, valueHtml, subHtml, accent) {
+      var c = el("div", "scard" + (accent ? " accent" : ""));
+      c.appendChild(el("div", "label", label));
+      c.appendChild(el("div", "value", valueHtml));
+      if (subHtml) c.appendChild(el("div", "sub", subHtml));
+      return c;
+    }
+
+    var headSub = "지난달 대비 " + deltaHtml(m.totalNetSec, prev ? prev.totalNetSec : null);
+    if (m.provisionalNetSec > 0) {
+      headSub += '<div class="prov-split">⚠️ 확정 ' + fmtHM(m.totalNetSec - m.provisionalNetSec) +
+        " · 임시 " + fmtHM(m.provisionalNetSec) + " 포함(보정 시 정확)</div>";
+    }
+    grid.appendChild(card(
+      "이번 달 총 순공부시간",
+      fmtHM(m.totalNetSec),
+      headSub,
+      true
+    ));
+    grid.appendChild(card(
+      "출석",
+      m.attendanceDays + '<small> / ' + m.openDays + '일</small>',
+      m.provisionalDays > 0 ? ("임시 집계 " + m.provisionalDays + "일 포함") : "개근까지 " + (m.openDays - m.attendanceDays) + "일"
+    ));
+    grid.appendChild(card(
+      "공부한 날 하루 평균",
+      fmtHM(m.dailyAvgSec),
+      "지난달 대비 " + deltaHtml(m.dailyAvgSec, prev ? prev.dailyAvgSec : null)
+    ));
+    grid.appendChild(card(
+      "평일 / 주말 평균",
+      '<span style="font-size:18px">' + fmtShort(m.weekdayAvgSec) + " / " + fmtShort(m.weekendAvgSec) + "</span>",
+      "하루 평균 기준"
+    ));
+  }
+
+  function renderCalendarGrid() {
+    var ym = currentMonthKey();
+    var m = currentMonth();
+    var openSet = {};
+    (DATA.openDays[ym] || []).forEach(function (d) { openSet[d] = true; });
+    var p = parseYM(ym);
+    var totalDays = daysInMonth(ym);
+    var firstDow = dowOf(ymd(p.y, p.m, 1));
+    var todayStr = (function () {
+      var t = new Date();
+      return ymd(t.getFullYear(), t.getMonth() + 1, t.getDate());
+    })();
+
+    var wrap = $("calendar");
+    wrap.innerHTML = "";
+    var grid = el("div", "cal-grid");
+
+    // 요일 헤더
+    DOW.forEach(function (d, i) {
+      var h = el("div", "cal-dow" + (i === 0 ? " sun" : i === 6 ? " sat" : ""), d);
+      grid.appendChild(h);
+    });
+    // 앞 빈칸
+    for (var b = 0; b < firstDow; b++) grid.appendChild(el("div", "cal-cell empty"));
+
+    for (var day = 1; day <= totalDays; day++) {
+      var dateStr = ymd(p.y, p.m, day);
+      var info = m.days[dateStr];
+      var weekend = isWeekendStr(dateStr);
+      var cls = "cal-cell" + (weekend ? " weekend" : "");
+      if (dateStr === todayStr) cls += " today";
+
+      var cell = el("div", cls);
+      cell.appendChild(el("div", "daynum", String(day)));
+
+      if (info) {
+        cell.classList.add("clickable");
+        if (info.provisional) {
+          cell.classList.add("nocheck");
+          cell.appendChild(el("div", "time", fmtShort(info.netSec)));
+          cell.appendChild(el("div", "badge", "⚠️"));
+        } else {
+          cell.classList.add("studied");
+          cell.appendChild(el("div", "time", fmtShort(info.netSec)));
+          if (info.corrected) cell.appendChild(el("div", "badge", "✓"));
+        }
+        (function (ds) {
+          cell.addEventListener("click", function () { openDayModal(ds); });
+        })(dateStr);
+      } else if (openSet[dateStr]) {
+        // 운영일인데 결석
+        var d = el("div", "dot dot-absent");
+        d.style.marginTop = "auto"; d.style.marginBottom = "6px";
+        cell.appendChild(d);
+      }
+      grid.appendChild(cell);
+    }
+    wrap.appendChild(grid);
+  }
+
+  function bar(label, mine, avg, fmt) {
+    var max = Math.max(mine, avg, 1);
+    var row = el("div", "cc-row");
+    row.appendChild(el("div", "cc-label",
+      '<span>' + label + '</span><span class="cc-mine">' + fmt(mine) + "</span>"));
+    var track = el("div", "cc-bar-track");
+    var b = el("div", "cc-bar");
+    b.style.width = (mine / max * 100) + "%";
+    var mark = el("div", "cc-avg-mark");
+    mark.style.left = (avg / max * 100) + "%";
+    track.appendChild(b);
+    track.appendChild(mark);
+    row.appendChild(track);
+    var diff = mine - avg;
+    var cmp;
+    if (Math.abs(diff) < 60) cmp = "반 평균과 비슷";
+    else cmp = "반 평균보다 " + fmt(Math.abs(diff)) + (diff > 0 ? " 많음" : " 적음");
+    row.appendChild(el("div", "cc-avg-label", "┃ 반 평균 " + fmt(avg) + " · " + cmp));
+    return row;
+  }
+
+  function renderClassCompare() {
+    var ym = currentMonthKey();
+    var m = currentMonth();
+    var ca = computeClassAverages(ym);
+    var box = $("class-compare");
+    box.innerHTML = "";
+    if (!ca) return;
+    box.appendChild(el("div", "cc-title",
+      "👥 같은 반 평균과 비교 <span style='color:#9aa1ad'>(익명 · " + ca.studentCount + "명)</span>"));
+    box.appendChild(bar("이번 달 총 순공부시간", m.totalNetSec, ca.totalNetSec, fmtHM));
+    box.appendChild(bar("공부한 날 하루 평균", m.dailyAvgSec, ca.dailyAvgSec, fmtHM));
+  }
+
+  function renderCalendar() {
+    var ym = currentMonthKey();
+    $("cal-student").textContent = state.student.name + " 학생";
+    $("cal-meta").textContent =
+      (currentMonth().className || "") + (state.student.seat ? " · " + state.student.seat + "번 좌석" : "");
+    $("cal-month-title").textContent = ymLabel(ym);
+    $("prev-month").disabled = !state.student.months[DATA.months[state.monthIdx - 1]];
+    $("next-month").disabled = !state.student.months[DATA.months[state.monthIdx + 1]];
+    renderDataStatus(currentMonth());
+    renderSummary();
+    renderCalendarGrid();
+    renderClassCompare();
+  }
+
+  /* ---------- 일자 상세 모달 ---------- */
+  function openDayModal(dateStr) {
+    var info = currentMonth().days[dateStr];
+    if (!info) return;
+    var p = dateStr.split("-");
+    var body = $("day-modal-body");
+    body.innerHTML = "";
+
+    body.appendChild(el("div", null,
+      '<span class="dm-date">' + (+p[1]) + "월 " + (+p[2]) + "일</span>" +
+      '<span class="dm-dow">(' + DOW[dowOf(dateStr)] + "요일)</span>"));
+
+    if (info.corrected) {
+      body.appendChild(el("div", "dm-badge ok",
+        "✓ 보정 완료 — 입·외출 기록으로 순공부시간을 계산해 반영했습니다."));
+    } else if (info.provisional) {
+      body.appendChild(el("div", "dm-badge",
+        "⚠️ 임시 집계 — 퇴실 태그 누락(자동퇴장)으로 입장~최종 퇴장까지의 체류시간을 잠정 순공부로 반영했습니다. 외출이 빠지지 않아 실제보다 길 수 있고, 보정하면 정확해집니다."));
+    }
+
+    var hero = el("div", "dm-hero");
+    hero.innerHTML =
+      '<div class="h net"><div class="hl">순공부</div><div class="hv">' + fmtHM(info.netSec) + "</div></div>" +
+      '<div class="h"><div class="hl">총 체류</div><div class="hv">' + fmtHM(info.totalSec) + "</div></div>" +
+      '<div class="h"><div class="hl">외출(제외)</div><div class="hv">' + fmtHM(info.excludedSec) + "</div></div>";
+    body.appendChild(hero);
+
+    body.appendChild(el("div", "kv",
+      '<span class="k">첫 입장 / 마지막 퇴장</span><span class="v">' +
+      (info.firstIn || "-") + " ~ " + (info.lastOut || "-") + "</span>"));
+    body.appendChild(el("div", "kv",
+      '<span class="k">외출 횟수</span><span class="v">' + info.outings + "회</span>"));
+    body.appendChild(el("div", "kv",
+      '<span class="k">세션 수</span><span class="v">' + info.sessions.length + "회 입·퇴장</span>"));
+
+    // 보정된 날: 입·외출 구간 분해로 표시
+    if (info.corrected && info.correction && info.correction.events) {
+      var ev = info.correction.events;
+      var steps = el("div", "session");
+      steps.appendChild(el("div", "s-head", '<span class="s-time">입·외출 기록 분해</span>'));
+      for (var k = 0; k < ev.length - 1; k++) {
+        var a = ev[k], b = ev[k + 1];
+        var study = (a.type === "entry" || a.type === "reentry");
+        var row = el("div", "kv");
+        row.innerHTML = '<span class="k">' + (study ? "📖 공부" : "🚶 외출") + " " + a.clock + " → " + b.clock +
+          '</span><span class="v">' + fmtHM(b.sec - a.sec) + "</span>";
+        if (study) row.style.color = "var(--primary)";
+        steps.appendChild(row);
+      }
+      body.appendChild(steps);
+      $("day-modal").hidden = false;
+      return;
+    }
+
+    // 세션 카드 + 타임라인
+    info.sessions.forEach(function (s, i) {
+      var warn = (s.reason === "자동퇴장" || s.reason === "미복귀");
+      var card = el("div", "session" + (warn ? " warn" : ""));
+      card.appendChild(el("div", "s-head",
+        '<span class="s-time">' + (s.in || "-") + " → " + (s.out || "-") + "</span>" +
+        '<span class="s-net">' + (s.provisional
+          ? "체류 " + fmtHM(s.totalSec) + " (임시 순공부)"
+          : "순 " + fmtHM(s.netSec)) + "</span>"));
+      var meta = [];
+      if (s.totalSec != null) meta.push("체류 " + fmtHM(s.totalSec));
+      if (s.outings) meta.push("외출 " + s.outings + "회");
+      if (s.seat) meta.push(s.seat + "번 좌석");
+      card.appendChild(el("div", "s-meta", meta.join(" · ")));
+      card.appendChild(el("div", "s-reason",
+        (warn ? "⚠️ " : "✅ ") + (s.reason || "")));
+
+      // 타임라인 (06:00~익일 01:00, 19시간=1140분)
+      var inM = minsFrom6(s.in), outM = minsFrom6(s.out);
+      if (inM != null && outM != null && outM > inM) {
+        var span = 1140;
+        var tl = el("div", "timeline");
+        var seg = el("div", "seg");
+        seg.style.left = Math.max(0, inM / span * 100) + "%";
+        seg.style.width = Math.min(100, (outM - inM) / span * 100) + "%";
+        tl.appendChild(seg);
+        card.appendChild(tl);
+        card.appendChild(el("div", "tl-axis",
+          "<span>06시</span><span>12시</span><span>18시</span><span>24시</span>"));
+      }
+      body.appendChild(card);
+    });
+
+    $("day-modal").hidden = false;
+  }
+  function closeModal() { $("day-modal").hidden = true; }
+
+  /* ---------- 월간 상세 ---------- */
+  function svgBarsDaily() {
+    var ym = currentMonthKey();
+    var m = currentMonth();
+    var openDaysArr = DATA.openDays[ym] || Object.keys(m.days).sort();
+    var maxNet = 1;
+    openDaysArr.forEach(function (d) {
+      var info = m.days[d];
+      if (info) maxNet = Math.max(maxNet, info.netSec);
+    });
+
+    var bars = el("div", "bars");
+    var xaxis = el("div", "bar-x");
+    openDaysArr.forEach(function (d) {
+      var info = m.days[d];
+      var net = info ? info.netSec : 0;
+      var weekend = isWeekendStr(d);
+      var wrap = el("div", "bar-wrap");
+      var b = el("div", "bar" + (net === 0 ? " zero" : weekend ? " weekend" : ""));
+      if (info && info.noCheckout && net === 0) b.className = "bar nocheck";
+      b.style.height = (net / maxNet * 100) + "%";
+      b.title = (+d.slice(8)) + "일 · " + (info ? fmtHM(net) : "결석");
+      wrap.appendChild(b);
+      bars.appendChild(wrap);
+      var lbl = (+d.slice(8));
+      xaxis.appendChild(el("div", "bx", (lbl % 5 === 0 || lbl === 1) ? String(lbl) : ""));
+    });
+    var sec = el("section");
+    sec.appendChild(el("h3", null, "📈 일별 순공부시간 추이"));
+    sec.appendChild(bars);
+    sec.appendChild(xaxis);
+    sec.appendChild(el("div", "cc-avg-label",
+      '<span class="dot dot-study"></span> 평일 &nbsp; <span class="dot" style="background:var(--weekend)"></span> 주말 &nbsp; <span class="dot dot-nocheck"></span> 퇴실미체크 &nbsp; <span class="dot dot-absent"></span> 결석'));
+    return sec;
+  }
+
+  function svgDowPattern() {
+    var m = currentMonth();
+    var sum = [0, 0, 0, 0, 0, 0, 0], cnt = [0, 0, 0, 0, 0, 0, 0];
+    Object.keys(m.days).forEach(function (d) {
+      var info = m.days[d];
+      if (info.netSec > 0) {
+        var w = dowOf(d);
+        sum[w] += info.netSec; cnt[w] += 1;
+      }
+    });
+    var avg = sum.map(function (s, i) { return cnt[i] ? s / cnt[i] : 0; });
+    var maxA = Math.max.apply(null, avg.concat([1]));
+
+    var grid = el("div", "dow-grid");
+    for (var i = 0; i < 7; i++) {
+      var cell = el("div", "dow-cell" + (i === 0 || i === 6 ? " we" : ""));
+      cell.appendChild(el("div", "dn", DOW[i]));
+      var db = el("div", "db");
+      var f = el("div", "dbf");
+      f.style.height = (avg[i] / maxA * 100) + "%";
+      db.appendChild(f);
+      cell.appendChild(db);
+      cell.appendChild(el("div", "dv", avg[i] ? fmtShort(avg[i]) : "-"));
+      grid.appendChild(cell);
+    }
+    var sec = el("section");
+    sec.appendChild(el("h3", null, "📅 요일별 평균 <span class='mb-sub'>(공부한 날 기준)</span>"));
+    sec.appendChild(grid);
+    return sec;
+  }
+
+  function weekdayWeekendBlock() {
+    var m = currentMonth();
+    var sec = el("section");
+    sec.appendChild(el("h3", null, "⚖️ 평일 vs 주말"));
+    var ww = el("div", "ww");
+    ww.innerHTML =
+      '<div class="ww-item weekday"><div class="wl">평일 하루 평균</div><div class="wv">' + fmtHM(m.weekdayAvgSec) + "</div></div>" +
+      '<div class="ww-item weekend"><div class="wl">주말 하루 평균</div><div class="wv">' + fmtHM(m.weekendAvgSec) + "</div></div>";
+    sec.appendChild(ww);
+    return sec;
+  }
+
+  function entryHourBlock() {
+    var m = currentMonth();
+    var hours = new Array(24).fill(0);
+    Object.keys(m.days).forEach(function (d) {
+      var fi = m.days[d].firstIn;
+      if (fi) hours[+fi.split(":")[0]] += 1;
+    });
+    // 표시 범위 06~24
+    var start = 6, end = 23;
+    var maxH = Math.max.apply(null, hours.concat([1]));
+    var peak = hours.indexOf(maxH);
+
+    var bars = el("div", "hours");
+    var xaxis = el("div", "hours-x");
+    for (var h = start; h <= end; h++) {
+      var b = el("div", "hb" + (h === peak ? " peak" : ""));
+      b.style.height = (hours[h] / maxH * 100) + "%";
+      b.title = h + "시 입실 " + hours[h] + "일";
+      bars.appendChild(b);
+      xaxis.appendChild(el("div", "hx", (h % 3 === 0) ? h : ""));
+    }
+    var sec = el("section");
+    sec.appendChild(el("h3", null, "🕐 주로 오는 시간대 <span class='mb-sub'>(첫 입실 기준)</span>"));
+    sec.appendChild(bars);
+    sec.appendChild(xaxis);
+    if (peak >= 0) sec.appendChild(el("div", "cc-avg-label", "가장 자주 입실: " + peak + "시 무렵"));
+    return sec;
+  }
+
+  // "이번 달 한눈에 보기" — 이미 계산된 지표로 문장형 인사이트 생성
+  function monthlyInsightsBlock() {
+    var ym = currentMonthKey();
+    var m = currentMonth();
+    var prev = computeMonth(state.student, prevYM(ym));
+    var items = [];
+
+    // 1) 총합 + 전월 대비
+    var s1 = "이번 달 순공부시간은 <b>" + fmtHM(m.totalNetSec) + "</b>이에요";
+    if (prev && prev.totalNetSec > 0) {
+      var diff = m.totalNetSec - prev.totalNetSec;
+      var pct = Math.round(Math.abs(diff) / prev.totalNetSec * 100);
+      if (pct >= 3) s1 += diff > 0 ? (" — 지난달보다 <b>" + pct + "% 늘었어요</b> 📈")
+                                   : (" — 지난달보다 <b>" + pct + "% 줄었어요</b> 📉");
+      else s1 += " — 지난달과 비슷해요";
+    }
+    items.push({ ic: "⏱️", tx: s1 });
+
+    // 2) 가장 꾸준했던 요일
+    var sum = [0, 0, 0, 0, 0, 0, 0], cnt = [0, 0, 0, 0, 0, 0, 0];
+    Object.keys(m.days).forEach(function (d) {
+      var info = m.days[d];
+      if (info.netSec > 0) { var w = dowOf(d); sum[w] += info.netSec; cnt[w] += 1; }
+    });
+    var bestDow = -1, bestAvg = -1;
+    for (var i = 0; i < 7; i++) { if (cnt[i]) { var a = sum[i] / cnt[i]; if (a > bestAvg) { bestAvg = a; bestDow = i; } } }
+    if (bestDow >= 0) items.push({ ic: "📅", tx: "가장 꾸준했던 요일은 <b>" + DOW[bestDow] + "요일</b>, 평균 <b>" + fmtHM(bestAvg) + "</b> 공부했어요" });
+
+    // 3) 평일 vs 주말 집중도
+    if (m.weekdayAvgSec && m.weekendAvgSec) {
+      if (m.weekdayAvgSec >= m.weekendAvgSec)
+        items.push({ ic: "⚖️", tx: "평일 하루 평균(<b>" + fmtHM(m.weekdayAvgSec) + "</b>)이 주말(<b>" + fmtHM(m.weekendAvgSec) + "</b>)보다 길었어요" });
+      else
+        items.push({ ic: "⚖️", tx: "주말 하루 평균(<b>" + fmtHM(m.weekendAvgSec) + "</b>)이 평일(<b>" + fmtHM(m.weekdayAvgSec) + "</b>)보다 길었어요" });
+    }
+
+    // 4) 출석/결석
+    var absent = Math.max(0, m.openDays - m.attendanceDays);
+    if (absent > 0) items.push({ ic: "🗓️", tx: "운영일 <b>" + m.openDays + "일</b> 중 <b>" + m.attendanceDays + "일</b> 나왔고, <b>" + absent + "일</b>은 출석 기록이 없어요" });
+    else items.push({ ic: "🎉", tx: "운영일 <b>" + m.openDays + "일</b> 모두 출석했어요" });
+
+    // 5) 짧게 머문 날 (1시간 미만, 임시 제외)
+    var shortN = 0;
+    Object.keys(m.days).forEach(function (d) {
+      var info = m.days[d];
+      if (info.netSec > 0 && info.netSec < 3600 && !info.provisional) shortN++;
+    });
+    if (shortN > 0) items.push({ ic: "⚡", tx: "공부한 날 중 <b>" + shortN + "일</b>은 1시간 미만으로 짧게 머물렀어요" });
+
+    // 6) 최장일
+    if (m.maxDay) items.push({ ic: "🔥", tx: "가장 오래 공부한 날은 <b>" + (+m.maxDay.date.slice(5, 7)) + "/" + (+m.maxDay.date.slice(8)) + "</b>, <b>" + fmtHM(m.maxDay.netSec) + "</b>이었어요" });
+
+    // 7) 임시 집계 안내
+    if (m.provisionalDays > 0) items.push({ ic: "⚠️", tx: "<b>" + m.provisionalDays + "일</b>은 퇴실 태그 누락으로 임시 집계(체류 기준)라 실제보다 길 수 있어요 — 보정 시 정확해져요" });
+
+    var sec = el("section", "insights");
+    sec.appendChild(el("h3", null, "✨ 이번 달 한눈에 보기"));
+    var list = el("div", "insight-list");
+    items.forEach(function (it) {
+      var row = el("div", "insight");
+      row.innerHTML = '<span class="i-ic">' + it.ic + '</span><span class="i-tx">' + it.tx + "</span>";
+      list.appendChild(row);
+    });
+    sec.appendChild(list);
+    return sec;
+  }
+
+  function keyMetricsBlock() {
+    var ym = currentMonthKey();
+    var m = currentMonth();
+    var prev = computeMonth(state.student, prevYM(ym));
+    var sec = el("section");
+    sec.appendChild(el("h3", null, "📋 핵심 지표"));
+    function kv(k, v) { sec.appendChild(el("div", "kv", '<span class="k">' + k + '</span><span class="v">' + v + "</span>")); }
+    kv("총 순공부시간", fmtHM(m.totalNetSec) + " " + deltaHtml(m.totalNetSec, prev ? prev.totalNetSec : null));
+    kv("출석일수", m.attendanceDays + " / " + m.openDays + "일");
+    kv("공부 인정일", m.recognizedDays + "일");
+    kv("임시 집계(보정 전)", m.provisionalDays + "일");
+    kv("공부한 날 하루 평균", fmtHM(m.dailyAvgSec));
+    if (m.maxDay) {
+      var md = m.maxDay.date;
+      kv("가장 오래 공부한 날", (+md.slice(5, 7)) + "/" + (+md.slice(8)) + " (" + fmtHM(m.maxDay.netSec) + ")");
+    }
+    return sec;
+  }
+
+  function renderMonthly() {
+    $("monthly-title").textContent = state.student.name + " · " + ymLabel(currentMonthKey());
+    var body = $("monthly-body");
+    body.innerHTML = "";
+    body.appendChild(monthlyInsightsBlock());
+    body.appendChild(svgBarsDaily());
+    body.appendChild(weekdayWeekendBlock());
+    body.appendChild(svgDowPattern());
+    body.appendChild(entryHourBlock());
+    body.appendChild(keyMetricsBlock());
+  }
+
+  /* ---------- 이벤트 ---------- */
+  function init() {
+    if (isDevMode()) {
+      var db = $("demo-box");
+      if (db) db.hidden = false;
+      renderDemoList();
+    }
+    $("login-form").addEventListener("submit", handleLogin);
+    $("btn-logout").addEventListener("click", function () {
+      state.student = null;
+      $("in-name").value = ""; $("in-phone").value = "";
+      showView("view-login");
+    });
+    $("prev-month").addEventListener("click", function () {
+      if (state.student.months[DATA.months[state.monthIdx - 1]]) { state.monthIdx--; renderCalendar(); }
+    });
+    $("next-month").addEventListener("click", function () {
+      if (state.student.months[DATA.months[state.monthIdx + 1]]) { state.monthIdx++; renderCalendar(); }
+    });
+    $("btn-monthly").addEventListener("click", function () { renderMonthly(); showView("view-monthly"); });
+    $("btn-back-cal").addEventListener("click", function () { showView("view-calendar"); });
+    $("day-modal").addEventListener("click", function (e) {
+      if (e.target.getAttribute("data-close")) closeModal();
+    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+
+    showView("view-login");
+  }
+
+  if (!DATA || !DATA.students) {
+    document.body.innerHTML = '<p style="padding:40px;text-align:center">데이터를 불러오지 못했습니다. scripts/preprocess.py를 먼저 실행하세요.</p>';
+  } else {
+    init();
+  }
+})();
