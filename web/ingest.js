@@ -205,11 +205,25 @@
     };
   }
 
-  /* key(이름 또는 이름#좌석) 기준 결정적 전화 뒷4 할당 (preprocess.py 와 동일 알고리즘) */
+  /* 명부 전화(loginPhones)가 부여된 학생인지 — 그러면 crc32 데모번호로 덮어쓰지 않음 */
+  function hasRosterPhone(s) {
+    return !!((s.phoneFromRoster && s.phoneLast4) || (s.loginPhones && s.loginPhones.length));
+  }
+
+  /* key(이름 또는 이름#좌석) 기준 결정적 전화 뒷4 할당 (preprocess.py 와 동일 알고리즘)
+   * 단, 명부에서 실제 전화를 받은 학생은 그대로 고정(데모번호로 덮어쓰지 않음). */
   function assignPhones(students) {
     var used = {};
+    // 1차: 명부 전화 보유 학생은 고정하고 사용중으로 표시
+    students.forEach(function (s) {
+      if (!hasRosterPhone(s)) return;
+      if (!s.phoneLast4 && s.loginPhones && s.loginPhones.length) s.phoneLast4 = s.loginPhones[0];
+      if (s.phoneLast4) used[s.phoneLast4] = 1;
+    });
+    // 2차: 나머지에 crc32 결정적 할당(충돌 시 +1)
     students.slice().sort(function (a, b) { return (a.key || a.name).localeCompare(b.key || b.name, "ko"); })
       .forEach(function (s) {
+        if (hasRosterPhone(s)) return;
         var base = crc32(s.key || s.name) % 10000, n = base, cand;
         for (var i = 0; i < 10000; i++) {
           cand = ("0000" + n).slice(-4);

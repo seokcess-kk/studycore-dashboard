@@ -34,6 +34,7 @@
         <div id="demo-list" class="demo-list"></div>
         <p class="demo-hint" style="margin-top:10px"><a href="admin.html">🛠️ 원장용 퇴실 미체크 보정 페이지 →</a></p>
       </details>
+      <p class="admin-entry"><a href="admin.html">🛠️ 원장 로그인</a></p>
     </div>
   </section>
 
@@ -47,7 +48,7 @@
       <button class="btn-ghost" id="btn-logout">로그아웃</button>
     </header>
 
-    <div class="month-nav">
+    <div class="month-nav" id="month-nav">
       <button class="nav-arrow" id="prev-month" aria-label="이전 달">‹</button>
       <h2 id="cal-month-title"></h2>
       <button class="nav-arrow" id="next-month" aria-label="다음 달">›</button>
@@ -57,7 +58,7 @@
 
     <div class="summary-grid" id="summary-grid"></div>
 
-    <div class="cal-legend">
+    <div class="cal-legend" id="cal-legend">
       <span><i class="dot dot-study"></i> 공부한 날</span>
       <span><i class="dot dot-nocheck"></i> 임시(보정 전)</span>
       <span><i class="dot dot-absent"></i> 결석</span>

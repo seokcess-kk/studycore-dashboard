@@ -57,6 +57,11 @@ button { font-family: inherit; cursor: pointer; }
 .btn-primary.wide { margin-top: 18px; }
 .login-error { color: var(--bad); font-size: 13px; text-align: center; margin: 12px 0 0; }
 
+/* 원장 로그인 입구 (로그인 카드 하단, 항상 노출) */
+.admin-entry { text-align: center; margin: 20px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.admin-entry a { color: var(--ink-soft); font-size: 13px; text-decoration: none; }
+.admin-entry a:hover { color: var(--primary); text-decoration: underline; }
+
 .demo-box { margin-top: 22px; border-top: 1px dashed var(--line); padding-top: 14px; }
 .demo-box summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; }
 .demo-hint { font-size: 12px; color: var(--ink-soft); margin: 8px 0; }
@@ -133,6 +138,8 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ===== 달력 ===== */
 .calendar { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px; }
+.empty-data { text-align: center; color: var(--ink-soft); padding: 40px 16px; line-height: 1.7; font-size: 15px; }
+.empty-data small { font-size: 13px; opacity: .85; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-dow { text-align: center; font-size: 11px; color: var(--ink-soft); padding: 6px 0; font-weight: 600; }
 .cal-dow.sun { color: var(--weekend); }

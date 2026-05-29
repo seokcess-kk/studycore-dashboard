@@ -50,8 +50,11 @@
 
     var meta = metaR.data || { months: [], open_days: {}, class_averages: {} };
     var students = (stuR.data || []).map(function (row) {
+      var phones = row.phones || [];
       return {
         key: row.key, name: row.name, phoneLast4: row.phone4, seat: row.seat,
+        loginPhones: phones, phoneFromRoster: phones.length > 0,
+        profile: row.profile || null,
         months: (row.data && row.data.months) || {},
       };
     });
@@ -77,6 +80,7 @@
     var rows = ds.students.map(function (s) {
       return {
         key: s.key || s.name, name: s.name, phone4: s.phoneLast4, seat: s.seat == null ? null : s.seat,
+        phones: s.loginPhones || [], profile: s.profile || {},
         data: { months: s.months }, updated_at: new Date().toISOString(),
       };
     });

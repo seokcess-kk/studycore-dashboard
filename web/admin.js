@@ -20,7 +20,8 @@
   var monthFilter = "all";
   var hideDone = false;
   var current = null; // {name, date}
-  var pendingBuilt = null; // 업로드 파싱 결과 대기
+  var pendingBuilt = null; // 출결 업로드 파싱 결과 대기
+  var pendingRoster = null; // 명부 업로드 파싱 결과 대기
 
   /* 미체크 플래그 수집 */
   function collectFlags() {
@@ -216,12 +217,17 @@
     if (!text) { box.hidden = true; return; }
     box.hidden = false; box.className = "upload-msg " + (cls || ""); box.textContent = text;
   }
+  function rosterCount(students) {
+    return (students || []).filter(function (s) { return s.loginPhones && s.loginPhones.length; }).length;
+  }
   function renderLoadedInfo() {
     var box = $("loaded-info");
     if (REMOTE) {
       box.innerHTML = "";
       var months = (DATA.months || []).map(ymLabel).join(", ") || "없음";
-      box.appendChild(el("div", null, "서버 반영 데이터: <b>" + months + "</b> <span class='badge-src'>Supabase</span>"));
+      var rc = rosterCount(DATA.students);
+      box.appendChild(el("div", null, "서버 반영 데이터: <b>" + months + "</b> <span class='badge-src'>Supabase</span>" +
+        (rc ? " · 명부 연락처 <b>" + rc + "명</b>" : " · <span style='color:#c0392b'>명부 미등록</span>")));
       var right = el("div", null, "");
       var out = el("button", null, "로그아웃");
       out.addEventListener("click", function () { window.SCApi.adminSignOut().then(function () { window.location.reload(); }); });
@@ -233,8 +239,10 @@
     var uploaded = window.SCDataset.isUploaded();
     var months = (active && active.months || []).map(ymLabel).join(", ") || "없음";
     box.innerHTML = "";
+    var rcL = rosterCount(active && active.students);
     var left = el("div", null, "현재 반영된 데이터: <b>" + months + "</b> " +
-      "<span class='badge-src" + (uploaded ? "" : " bundled") + "'>" + (uploaded ? "업로드본" : "기본 샘플") + "</span>");
+      "<span class='badge-src" + (uploaded ? "" : " bundled") + "'>" + (uploaded ? "업로드본" : "기본 샘플") + "</span>" +
+      (rcL ? " · 명부 연락처 <b>" + rcL + "명</b>" : " · 명부 미등록"));
     box.appendChild(left);
     var right = el("div", null, "");
     var exportBtn = el("button", null, "💾 데이터 내보내기(JSON)");
@@ -354,9 +362,111 @@
     renderLoadedInfo();
   }
 
+  /* ---------- 학생 명부 업로드 ---------- */
+  function rMsg(text, cls) {
+    var box = $("roster-msg");
+    if (!text) { box.hidden = true; return; }
+    box.hidden = false; box.className = "upload-msg " + (cls || ""); box.textContent = text;
+  }
+  function showRosterPreview(built) {
+    var s = built.summary;
+    var box = $("roster-preview");
+    box.hidden = false; box.innerHTML = "";
+
+    var grid = el("div", "up-grid");
+    function cell(v, l, warn) {
+      var c = el("div"); c.appendChild(el("div", "v" + (warn ? " warn" : ""), v)); c.appendChild(el("div", "l", l)); return c;
+    }
+    grid.appendChild(cell(s.count, "명부 학생 수"));
+    grid.appendChild(cell(s.withGuardian, "보호자 연락처"));
+    grid.appendChild(cell(s.withStudent, "학생 연락처"));
+    grid.appendChild(cell(s.noPhone, "연락처 없음", s.noPhone > 0));
+    box.appendChild(grid);
+
+    // 상태 분포
+    var stKeys = Object.keys(s.statusCount).sort(function (a, b) { return s.statusCount[b] - s.statusCount[a]; });
+    if (stKeys.length) {
+      box.appendChild(el("div", "up-note ok", "상태 · " +
+        stKeys.map(function (k) { return k + " " + s.statusCount[k]; }).join(" / ")));
+    }
+
+    // 현재 데이터와 매칭 추정
+    var active = REMOTE ? DATA : (window.SCDataset.active() || { students: [] });
+    var names = {};
+    (active.students || []).forEach(function (st) { names[st.name] = 1; });
+    var matched = 0, rosterOnly = 0;
+    built.roster.forEach(function (rec) { if (names[rec.name]) matched++; else rosterOnly++; });
+    box.appendChild(el("div", "up-note ok",
+      "🔗 출결과 매칭 <b>" + matched + "명</b> · 🆕 신규(출결 없음) <b>" + rosterOnly + "명</b>"));
+    box.appendChild(el("div", "up-note warn",
+      "ℹ️ 로그인 전화번호와 프로필이 이 명부로 <b>교체</b>됩니다. (출결·보정 기록은 유지)"));
+
+    var apply = el("div", "up-apply");
+    var btn = el("button", "btn-primary", "이 명부 반영하기");
+    btn.addEventListener("click", function () { applyRoster(built, btn); });
+    apply.appendChild(btn);
+    box.appendChild(apply);
+  }
+  function applyRoster(built, btn) {
+    if (REMOTE) {
+      var base = { months: DATA.months, openDays: DATA.openDays, classAverages: DATA.classAverages, students: DATA.students.slice() };
+      var res = window.SCRoster.applyToDataset(base, built.roster);
+      window.SCIngest.assignPhones(res.dataset.students); // 연락처 없는 학생엔 데모번호 보충
+      btn.disabled = true; rMsg("서버에 저장 중…", "");
+      window.SCApi.saveDataset(res.dataset).then(function () {
+        rMsg("명부가 반영되었습니다. 새로고침합니다…", "ok");
+        window.setTimeout(function () { window.location.reload(); }, 700);
+      }).catch(function (ex) { btn.disabled = false; rMsg("서버 저장 실패: " + (ex.message || ex), "err"); });
+    } else {
+      var baseL = window.SCDataset.seed() || { months: [], openDays: {}, classAverages: {}, students: [] };
+      var resL = window.SCRoster.applyToDataset(baseL, built.roster);
+      window.SCIngest.assignPhones(resL.dataset.students);
+      window.SCDataset.save(resL.dataset);
+      rMsg("명부가 반영되었습니다. 화면을 새로고침합니다…", "ok");
+      window.setTimeout(function () { window.location.reload(); }, 600);
+    }
+  }
+  function handleRosterFile(file) {
+    if (!file) return;
+    if (!window.XLSX) { rMsg("엑셀 라이브러리를 불러오지 못했습니다.", "err"); return; }
+    if (!window.SCRoster) { rMsg("명부 모듈을 불러오지 못했습니다.", "err"); return; }
+    $("roster-fname").textContent = "📄 " + file.name;
+    rMsg("", null); $("roster-preview").hidden = true; pendingRoster = null;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        var wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+        var built = window.SCRoster.buildFromRows(rows);
+        if (!built.ok) { rMsg("⚠️ " + built.error, "err"); return; }
+        pendingRoster = built;
+        showRosterPreview(built);
+      } catch (err) { rMsg("엑셀을 읽지 못했습니다: " + err.message, "err"); }
+    };
+    reader.onerror = function () { rMsg("파일을 읽지 못했습니다.", "err"); };
+    reader.readAsArrayBuffer(file);
+  }
+  function setupRoster() {
+    var input = $("roster-input"), drop = $("roster-drop");
+    $("roster-pick").addEventListener("click", function () { input.click(); });
+    input.addEventListener("change", function (e) { handleRosterFile(e.target.files && e.target.files[0]); });
+    ["dragenter", "dragover"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("drag"); });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("drag"); });
+    });
+    drop.addEventListener("drop", function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      handleRosterFile(f);
+    });
+  }
+
   // 데이터 준비된 뒤 화면 구성
   function startApp() {
     setupUpload();
+    setupRoster();
     initMonthFilter();
     renderList();
   }

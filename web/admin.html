@@ -49,6 +49,26 @@
       <div class="loaded-info" id="loaded-info"></div>
     </section>
 
+    <!-- 학생 명부(연락처·프로필) 업로드 -->
+    <section class="upload-card">
+      <h2>📇 학생 명부 업로드 <span class="tag">연락처·프로필</span></h2>
+      <p class="upload-desc">학생 명부 엑셀(.xlsx)을 올리면 <b>로그인용 전화번호</b>(학생·보호자 둘 중 아무 뒷 4자리나 허용)와
+        학년·학교·상태 등 <b>프로필</b>이 반영됩니다. 출결 기록이 아직 없는 신규생도 등록되어 로그인할 수 있습니다.</p>
+      <p class="upload-desc" style="margin-top:-4px">
+        양식 컬럼: 이름 · 연락처 · 보호자 연락처 · 상태 · 좌석 · 성별 · 생년월일 · 학년 · 학교 · 주소1 · 주소2 · 등록일 · 퇴원일</p>
+      <div class="upload-drop" id="roster-drop">
+        <input type="file" id="roster-input" accept=".xlsx,.xls" hidden />
+        <div class="drop-inner">
+          <div class="drop-icon">📇</div>
+          <button class="btn-primary" id="roster-pick" type="button">명부 파일 선택</button>
+          <div class="drop-hint">또는 파일을 여기로 끌어다 놓기 (.xlsx)</div>
+          <div class="upload-fname" id="roster-fname"></div>
+        </div>
+      </div>
+      <div id="roster-msg" class="upload-msg" hidden></div>
+      <div id="roster-preview" class="upload-preview" hidden></div>
+    </section>
+
     <h2 class="section-h">⚠️ 퇴실 미체크 보정</h2>
     <div class="admin-stats" id="admin-stats"></div>
 
@@ -107,6 +127,7 @@
   <script src="aggregate.js"></script>
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="ingest.js"></script>
+  <script src="roster.js"></script>
   <script src="corrections.js"></script>
   <script src="admin.js"></script>
 </body>

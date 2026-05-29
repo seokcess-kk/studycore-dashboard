@@ -139,7 +139,10 @@
 
     // 로컬 모드(localStorage/번들)
     var matches = DATA.students.filter(function (s) { return s.name === name; });
-    var student = matches.filter(function (s) { return s.phoneLast4 === phone; })[0];
+    // 명부의 학생·보호자 번호(loginPhones) 중 아무거나, 또는 대표 phoneLast4 일치
+    var student = matches.filter(function (s) {
+      return (s.loginPhones && s.loginPhones.indexOf(phone) >= 0) || s.phoneLast4 === phone;
+    })[0];
     if (!student) {
       err.textContent = matches.length
         ? "전화번호 뒷 4자리가 일치하지 않습니다."
@@ -338,15 +341,49 @@
     box.appendChild(bar("공부한 날 하루 평균", m.dailyAvgSec, ca.dailyAvgSec, fmtHM));
   }
 
+  // 헤더 메타: 학년 · 학교 · 좌석 · 반
+  function metaLine(m) {
+    var prof = state.student.profile || {};
+    var bits = [];
+    if (prof.grade) bits.push(prof.grade);
+    if (prof.school) bits.push(prof.school);
+    if (state.student.seat) bits.push(state.student.seat + "번 좌석");
+    if (m && m.className) bits.push(m.className);
+    return bits.join(" · ");
+  }
+
+  function setDisplay(id, val) { var e = $(id); if (e) e.style.display = val; }
+
+  // 출결 기록이 아직 없는(명부 전용) 학생 안내
+  function renderNoData() {
+    var grid = $("summary-grid"); if (grid) grid.innerHTML = "";
+    var cmp = $("class-compare"); if (cmp) cmp.innerHTML = "";
+    var ds = $("data-status"); if (ds) ds.hidden = true;
+    setDisplay("month-nav", "none");
+    setDisplay("cal-legend", "none");
+    setDisplay("btn-monthly", "none");
+    var cal = $("calendar");
+    if (cal) cal.innerHTML = "<div class='empty-data'>아직 출결 기록이 없어요." +
+      "<br><small>등록 후 출결이 쌓이면 이곳에 월간 학습 리포트가 표시됩니다.</small></div>";
+  }
+
   function renderCalendar() {
-    var ym = currentMonthKey();
+    var m = currentMonth();
     $("cal-student").textContent = state.student.name + " 학생";
-    $("cal-meta").textContent =
-      (currentMonth().className || "") + (state.student.seat ? " · " + state.student.seat + "번 좌석" : "");
+    $("cal-meta").textContent = metaLine(m);
+
+    if (!m) { $("cal-month-title").textContent = ""; renderNoData(); return; }
+
+    // 데이터가 있는 학생: 숨겨졌을 수 있는 영역 복원
+    setDisplay("month-nav", "");
+    setDisplay("cal-legend", "");
+    setDisplay("btn-monthly", "");
+
+    var ym = currentMonthKey();
     $("cal-month-title").textContent = ymLabel(ym);
     $("prev-month").disabled = !state.student.months[DATA.months[state.monthIdx - 1]];
     $("next-month").disabled = !state.student.months[DATA.months[state.monthIdx + 1]];
-    renderDataStatus(currentMonth());
+    renderDataStatus(m);
     renderSummary();
     renderCalendarGrid();
     renderClassCompare();
