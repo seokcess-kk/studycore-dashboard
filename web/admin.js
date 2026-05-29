@@ -18,7 +18,6 @@
   function dur(sec) { var m = Math.round(sec / 60); if (m >= 60) return Math.floor(m / 60) + "시간 " + (m % 60) + "분"; return m + "분"; }
 
   var monthFilter = "all";
-  var hideDone = false;
   var current = null; // {name, date}
   var pendingBuilt = null; // 출결 업로드 파싱 결과 대기
   var pendingRoster = null; // 명부 업로드 파싱 결과 대기
@@ -70,7 +69,7 @@
 
     var byKey = {};
     flags.forEach(function (f) {
-      if (hideDone && f.corrected) return;
+      if (f.corrected) return; // 완료(확인 완료)된 건은 목록에서 항상 제외
       if (term && f.name.toLowerCase().indexOf(term) === -1) return;
       (byKey[f.key] = byKey[f.key] || []).push(f);
     });
@@ -104,13 +103,12 @@
         if (sortBy === "recent") return a.date < b.date ? 1 : -1;
         return a.date < b.date ? -1 : 1;
       });
-      var doneN = items.filter(function (i) { return i.corrected; }).length;
       var label = items[0].name + (key.indexOf("#") >= 0
         ? " <small style='color:#9aa1ad'>(좌석 " + items[0].seat + ")</small>" : "");
       var g = el("details", "flag-group");
       g.open = true;
       var sum = el("summary", null,
-        "<span>" + label + "</span><span class='gcount'>" + items.length + "건 · 완료 " + doneN + "</span>");
+        "<span>" + label + "</span><span class='gcount'>" + items.length + "건</span>");
       g.appendChild(sum);
       items.forEach(function (f) {
         var row = el("div", "flag-row");
@@ -472,7 +470,6 @@
   }
 
   function wireHandlers() {
-    $("hide-done").addEventListener("change", function (e) { hideDone = e.target.checked; renderList(); });
     $("admin-search").addEventListener("input", function () { renderList(); });
     $("admin-sort").addEventListener("change", function () { renderList(); });
     $("btn-calc").addEventListener("click", function () { showResult(C.parseEventLog($("corr-input").value)); });
