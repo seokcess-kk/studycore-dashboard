@@ -1,4 +1,4 @@
-# report.studycore.co.kr 배포 가이드
+# report.studycore.kr 배포 가이드
 
 학부모용 학습 리포트를 **Vercel(정적 배포) + 기존 Supabase**로 올리는 절차입니다.
 도메인은 가비아, 사이트는 Vercel 구성 기준. (별도 서버/PHP 불필요, SSL은 Vercel 자동)
@@ -8,7 +8,7 @@
 ## 1단계. Supabase 준비 (1회)
 
 1. Supabase 대시보드 → **SQL Editor** → `supabase/schema.sql` 내용 붙여넣기
-   - 실행 전, 파일 안의 `admin@studycore.co.kr` 을 **원장님 이메일**로 바꾸세요.
+   - 실행 전, 파일 안의 `admin@studycore.kr` 을 **원장님 이메일**로 바꾸세요.
    - 실행하면 `rpt_*` 테이블 + 보안정책(RLS) + 학부모 조회 함수가 생성됩니다.
    - 이어서 `supabase/schema_roster.sql` 도 실행하세요. **학생 명부(연락처·프로필)** 컬럼과
      "학생/보호자 둘 중 아무 뒷4자리로도 로그인" 기능이 추가됩니다.
@@ -41,25 +41,25 @@
 
 > 업로드 제외: `inout_raw.xlsx`, `scripts/`, `supabase/`, `*.md` (개발/원본용)
 > 깔끔한 주소: `web/vercel.json` 의 `cleanUrls`로 `/admin`(=admin.html), `/`(=index.html) 로 열립니다.
-> → 원장 페이지 주소는 **`report.studycore.co.kr/admin`** (`.html` 없이).
+> → 원장 페이지 주소는 **`report.studycore.kr/admin`** (`.html` 없이).
 
 ### (2) Vercel에 서브도메인 연결
-- Vercel → 그 프로젝트 → **Settings → Domains → Add** → `report.studycore.co.kr` 입력
+- Vercel → 그 프로젝트 → **Settings → Domains → Add** → `report.studycore.kr` 입력
 - Vercel이 추가할 **DNS 레코드**를 안내합니다(보통 **CNAME → `cname.vercel-dns.com`**).
 
 ### (3) 가비아에 DNS 레코드 추가 — 네임서버 위치에 따라 둘 중 하나
-studycore.co.kr 의 **네임서버가 어디냐**에 따라 다릅니다:
+studycore.kr 의 **네임서버가 어디냐**에 따라 다릅니다:
 - **네임서버가 가비아**(일반적): **My가비아 → 도메인 → DNS 관리(레코드 수정)** 에서
   - 타입 `CNAME`, 호스트 `report`, 값 `cname.vercel-dns.com` (Vercel이 알려준 값) 추가
 - **네임서버를 Vercel로 옮긴 경우**: 가비아에서 할 게 없고, Vercel "Add Domain" 시 자동 처리됨
 
-DNS 전파 후 Vercel이 자동으로 `https://report.studycore.co.kr` 인증서를 발급합니다(수 분~수십 분).
+DNS 전파 후 Vercel이 자동으로 `https://report.studycore.kr` 인증서를 발급합니다(수 분~수십 분).
 
 ---
 
 ## 3단계. 초기 데이터 올리기
 
-1. `https://report.studycore.co.kr/admin.html` 접속 → **원장 이메일/비밀번호로 로그인**
+1. `https://report.studycore.kr/admin.html` 접속 → **원장 이메일/비밀번호로 로그인**
 2. **학생 명부 업로드**: `📇 학생 명부 업로드` 에 명부 엑셀(이름·연락처·보호자 연락처·상태·좌석·
    성별·생년월일·학년·학교·주소1·주소2·등록일·퇴원일)을 올리면 **로그인용 전화번호**와 프로필이
    반영됩니다. 명부에 있고 출결이 아직 없는 신규생도 등록되어 로그인할 수 있습니다.
@@ -69,7 +69,7 @@ DNS 전파 후 Vercel이 자동으로 `https://report.studycore.co.kr` 인증서
 
 ## 4단계. 학부모 안내
 
-- 주소: `https://report.studycore.co.kr`
+- 주소: `https://report.studycore.kr`
 - 로그인: **학생 이름 + 전화번호 뒷 4자리** (학생 본인 또는 보호자 번호 둘 중 아무거나)
 - 본인 자녀 데이터만 보입니다.
 

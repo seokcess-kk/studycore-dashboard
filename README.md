@@ -1,7 +1,7 @@
 # 스터디코어 학습 리포트
 
 독서실 입·출 기록으로 학부모에게 자녀의 월간 **순공부시간·출결**을 공유하는 대시보드.
-정적 프런트엔드 + **Supabase**(DB/인증). 배포: Vercel(`report.studycore.co.kr`).
+정적 프런트엔드 + **Supabase**(DB/인증). 배포: Vercel(`report.studycore.kr`).
 
 ## 구성
 ```

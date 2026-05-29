@@ -486,15 +486,23 @@
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
   }
 
+  // 로그인 폼 노출(세션 없음/확인 실패 시)
+  function showLoginGate() {
+    var chk = $("admin-checking"); if (chk) chk.hidden = true;
+    $("admin-main").hidden = true;
+    $("admin-auth").hidden = false;
+  }
+
   function afterLogin() {
     return window.SCApi.loadAll().then(function (r) {
       DATA = r.dataset; corrMap = r.corrections || {};
+      var chk = $("admin-checking"); if (chk) chk.hidden = true;
       $("admin-auth").hidden = true; $("admin-main").hidden = false;
       startApp();
     }).catch(function (ex) {
       var err = $("auth-error");
       err.textContent = "데이터를 불러오지 못했습니다: " + (ex.message || ex); err.hidden = false;
-      $("admin-auth").hidden = false; $("admin-main").hidden = true;
+      showLoginGate();
       var b = $("auth-btn"); if (b) b.disabled = false;
       if (window.console) console.error(ex);
     });
@@ -504,9 +512,12 @@
     wireHandlers();
     if (!REMOTE) { startApp(); return; }
 
-    // 서버 모드: 로그인 게이트
+    // 서버 모드: 세션 확인 동안에는 "로그인 확인 중…"만 보이고,
+    // 세션이 없을 때만 로그인 폼을 띄운다(폼 깜빡임 방지).
     $("admin-main").hidden = true;
-    $("admin-auth").hidden = false;
+    $("admin-auth").hidden = true;
+    var chk = $("admin-checking"); if (chk) chk.hidden = false;
+
     $("auth-form").addEventListener("submit", function (e) {
       e.preventDefault();
       var email = $("auth-email").value.trim(), pw = $("auth-pw").value;
@@ -519,8 +530,10 @@
           err.hidden = false; if (window.console) console.error(ex);
         });
     });
-    // 이미 로그인 세션이 있으면 바로 진입
-    window.SCApi.currentUser().then(function (u) { if (u) afterLogin(); });
+    // 이미 로그인 세션이 있으면 바로 진입, 없으면 로그인 폼 노출
+    window.SCApi.currentUser()
+      .then(function (u) { if (u) { afterLogin(); } else { showLoginGate(); } })
+      .catch(function () { showLoginGate(); });
   }
 
   if (!C) {

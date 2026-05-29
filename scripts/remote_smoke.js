@@ -64,7 +64,7 @@ async function parentTest() {
   const { reg, doc } = mkDoc(PIDS, ["view-login", "view-calendar", "view-monthly"]);
   let getReportArgs = null;
   const windowObj = {
-    scrollTo() {}, location: { search: "", protocol: "https:", hostname: "report.studycore.co.kr" },
+    scrollTo() {}, location: { search: "", protocol: "https:", hostname: "report.studycore.kr" },
     SCApi: {
       enabled: () => true,
       getReport: (name, phone) => { getReportArgs = { name, phone }; return Promise.resolve(name === "정훈" && phone === "9402" ? REPORT : null); },
@@ -130,11 +130,11 @@ async function adminTest() {
   };
   let savedCorr = null, signedIn = false;
   const windowObj = {
-    location: { search: "", protocol: "https:", hostname: "report.studycore.co.kr", reload() {} },
+    location: { search: "", protocol: "https:", hostname: "report.studycore.kr", reload() {} },
     alert() {},
     SCApi: {
       enabled: () => true,
-      currentUser: () => Promise.resolve(signedIn ? { email: "admin@studycore.co.kr" } : null),
+      currentUser: () => Promise.resolve(signedIn ? { email: "admin@studycore.kr" } : null),
       adminSignIn: (e, p) => { signedIn = true; return Promise.resolve({ user: { email: e } }); },
       adminSignOut: () => Promise.resolve(),
       loadAll: () => Promise.resolve({ dataset: dataset, corrections: {} }),
@@ -156,7 +156,7 @@ async function adminTest() {
   assert(reg["admin-auth"].hidden === false && reg["admin-main"].hidden === true, "로그인 전 게이트 노출");
 
   // 로그인
-  reg["auth-email"].value = "admin@studycore.co.kr"; reg["auth-pw"].value = "pw";
+  reg["auth-email"].value = "admin@studycore.kr"; reg["auth-pw"].value = "pw";
   fire(reg["auth-form"], "submit"); await tick(); await tick();
   assert(reg["admin-main"].hidden === false, "로그인 후 관리 화면 표시");
   assert(reg["flag-list"].children.length > 0, "서버 데이터로 보정 목록 렌더");

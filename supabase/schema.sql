@@ -1,6 +1,6 @@
 -- ============================================================
 -- 스터디코어 학습 리포트 — Supabase 스키마
--- 기존 studycore.co.kr Supabase 프로젝트에 함께 사용 (rpt_ 접두어로 격리)
+-- 기존 studycore.kr Supabase 프로젝트에 함께 사용 (rpt_ 접두어로 격리)
 -- Supabase 대시보드 > SQL Editor 에 붙여넣고 실행하세요.
 -- ============================================================
 
@@ -10,7 +10,7 @@ create table if not exists public.rpt_admins (
   email text primary key
 );
 -- ▼▼▼ 원장님 로그인용 이메일로 바꿔주세요 (Supabase Auth에 같은 이메일로 계정 생성) ▼▼▼
-insert into public.rpt_admins (email) values ('admin@studycore.co.kr')
+insert into public.rpt_admins (email) values ('admin@studycore.kr')
   on conflict (email) do nothing;
 
 -- 2) 데이터셋 메타 (싱글톤): 월 목록 / 개원일 / 반평균(익명) -------------------
