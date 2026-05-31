@@ -649,7 +649,7 @@
     for (var h = start; h <= end; h++) {
       var b = el("div", "hb" + (h === peak ? " peak" : ""));
       b.style.height = (hours[h] / maxH * 82) + "%";   // 상단 18%는 횟수 라벨 공간
-      if (hours[h] > 0) b.appendChild(el("span", "hb-val", String(hours[h])));
+      if (hours[h] > 0) b.appendChild(el("span", "hb-val", hours[h] + "회"));
       b.title = h + "시 입실 " + hours[h] + "일";
       bars.appendChild(b);
       xaxis.appendChild(el("div", "hx", (h % 3 === 0) ? h : ""));
