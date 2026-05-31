@@ -38,6 +38,11 @@
     if (h > 0) return h + "h";
     return m + "m";
   }
+  // 차트 막대 라벨용 — 시간 소수1 ("8.5"·"0.7"), 정각은 정수("8"), 0은 빈 문자
+  function fmtBarH(sec) {
+    if (!sec) return "";
+    return (Math.round(sec / 360) / 10).toString();
+  }
   function ymd(y, m, d) { return y + "-" + pad(m) + "-" + pad(d); }
   function parseYM(ym) { return { y: +ym.slice(0, 4), m: +ym.slice(5, 7) }; }
   function ymLabel(ym) { var p = parseYM(ym); return p.y + "년 " + p.m + "월"; }
@@ -554,9 +559,9 @@
       if (info && info.noCheckout && net === 0) cls = "bar nocheck";
       if (d === peakDay && net > 0) cls += " peak";   // 최고 학습일 강조
       var b = el("div", cls);
-      b.style.height = (net / maxNet * 100) + "%";
-      // 막대 위 수치(평소 숨김 → 최고일·선택·호버 시 표시)
-      b.appendChild(el("span", "bar-val", info && net > 0 ? fmtShort(net) : "결석"));
+      b.style.height = (net / maxNet * 85) + "%";   // 상단 15%는 수치 라벨 공간
+      // 모든 막대에 수치 상시 표시(세로). 결석일은 라벨 없음.
+      if (net > 0) b.appendChild(el("span", "bar-val", fmtBarH(net)));
       wrap.appendChild(b);
       wrap.title = (+d.slice(8)) + "일 · " + (info ? fmtHM(net) : "결석");
       bars.appendChild(wrap);
@@ -564,27 +569,16 @@
       xaxis.appendChild(el("div", "bx", (lbl % 5 === 0 || lbl === 1) ? String(lbl) : ""));
     });
 
-    // 학습일 하루 평균을 가로 점선으로
+    // 학습일 하루 평균을 가로 점선으로 (막대와 동일한 85% 스케일)
     if (m.dailyAvgSec > 0) {
       var avgLine = el("div", "bar-avg");
-      avgLine.style.bottom = (m.dailyAvgSec / maxNet * 100) + "%";
+      avgLine.style.bottom = (m.dailyAvgSec / maxNet * 85) + "%";
       avgLine.appendChild(el("span", "bar-avg-tag", "평균 " + fmtShort(m.dailyAvgSec)));
       bars.appendChild(avgLine);
     }
 
-    // 막대를 탭하면 그 날 수치를 고정 표시(모바일 대응)
-    bars.addEventListener("click", function (e) {
-      var t = e.target, wrap = null;
-      while (t && t !== bars) { if (t.className && /\bbar-wrap\b/.test(t.className)) { wrap = t; break; } t = t.parentNode; }
-      if (!wrap) return;
-      var on = wrap.classList.contains("show");
-      var shown = bars.querySelectorAll ? bars.querySelectorAll(".bar-wrap.show") : [];
-      for (var i = 0; i < shown.length; i++) shown[i].classList.remove("show");
-      if (!on) wrap.classList.add("show");
-    });
-
     var sec = el("section");
-    sec.appendChild(el("h3", null, "일별 학습 흐름 <span class='mb-sub'>(막대를 누르면 수치)</span>"));
+    sec.appendChild(el("h3", null, "일별 학습 흐름 <span class='mb-sub'>(단위: 시간)</span>"));
     sec.appendChild(bars);
     sec.appendChild(xaxis);
     sec.appendChild(el("div", "cc-avg-label",

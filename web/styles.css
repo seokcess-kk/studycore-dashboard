@@ -248,19 +248,18 @@ summary:focus-visible, .cal-cell.clickable:focus-visible {
 .insight .i-tx b { color: var(--primary); font-weight: 700; }
 
 /* 막대 추이 차트 */
-.bars { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 150px; margin-top: 22px; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
-.bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; cursor: pointer; }
+.bars { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 150px; margin-top: 30px; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
 .bar { position: relative; width: 100%; max-width: 14px; background: var(--study); border-radius: 3px 3px 0 0; min-height: 1px; transition: height .4s; }
 .bar.weekend { background: var(--weekend); }
 .bar.nocheck { background: var(--nocheck); }
 .bar.zero { background: #d6ddd9; }
 .bar.peak { background: var(--primary); }
-/* 막대 위 수치 — 기본 숨김, 최고일·선택·호버 시 노출 */
-.bar-val { position: absolute; left: 50%; top: -15px; transform: translateX(-50%); font-size: 9px; font-family: var(--font-mono); color: var(--ink); white-space: nowrap; opacity: 0; transition: opacity .15s; pointer-events: none; background: var(--card); padding: 0 3px; border-radius: 3px; }
-.bar.peak .bar-val { opacity: 1; color: var(--primary); font-weight: 700; }
-.bar-wrap:hover .bar-val { opacity: 1; }
-.bar-wrap.show .bar-val { opacity: 1; z-index: 4; box-shadow: var(--shadow); }
-.bar-wrap.show .bar { outline: 2px solid var(--primary); outline-offset: 1px; }
+/* 막대 위 수치 — 모든 막대에 세로로 상시 표시(좁은 막대 폭에서도 안 겹침) */
+.bar-val { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 3px; writing-mode: vertical-rl; text-orientation: mixed; font-size: 8px; line-height: 1; letter-spacing: -.4px; font-family: var(--font-mono); color: var(--ink-soft); white-space: nowrap; pointer-events: none; }
+.bar.peak .bar-val { color: var(--primary); font-weight: 700; }
+.bar.weekend .bar-val { color: var(--weekend); }
+.bar.nocheck .bar-val { color: var(--nocheck); }
 /* 학습일 평균 가로 점선 */
 .bar-avg { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--ink-soft); pointer-events: none; z-index: 2; }
 .bar-avg-tag { position: absolute; right: 0; top: -8px; font-size: 9px; color: var(--ink-soft); background: var(--card); padding: 0 4px; border-radius: 3px; }
