@@ -336,6 +336,8 @@ summary:focus-visible, .cal-cell.clickable:focus-visible {
 @media (min-width: 760px) {
   .view { max-width: 720px; }
   .summary-grid { grid-template-columns: repeat(4, 1fr); }
+  /* PC: 막대 간격이 충분하므로 차트 수치를 가로로 표시 */
+  .bar-val, .hb-val { writing-mode: horizontal-tb; font-size: 9px; letter-spacing: 0; }
 }
 @media (min-width: 1040px) {
   .view { max-width: 1000px; padding-bottom: 56px; }
