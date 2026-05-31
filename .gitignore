@@ -1,5 +1,6 @@
 # 실제 학생 개인정보 — 레포/배포에 올리지 않음 (운영 데이터는 Supabase에만)
 inout_raw.xlsx
+inout_log.xlsx
 student-info.xlsx
 ~$*.xlsx
 studycore-dataset.json

@@ -8,6 +8,12 @@
     "총 학습 시간", "순 학습 시간", "외출횟수", "제외 시간", "사유"];
   var AUTO = { "자동퇴장": 1, "미복귀": 1 };
 
+  // ── 이벤트 로그(inout_log.xlsx) 형식 ───────────────────────────────
+  var EVENT_HEADERS = ["이름", "휴대폰번호", "입퇴실 가능 시간", "상태", "시간", "입출입 사진"];
+  var IN_EVENTS = { "입장": 1, "재입장": 1 };
+  var BREAK_EVENTS = { "외출": 1, "이동": 1 };        // 자리 비움 = 제외('이동'도 제외)
+  var CLOSE_EVENTS = { "퇴장": 1, "퇴장(강제퇴장)": 1 };
+
   function toSec(t) {
     if (t === null || t === undefined || t === "-" || t === "") return null;
     var p = String(t).split(":");
@@ -46,9 +52,41 @@
     return (crc ^ 0xFFFFFFFF) >>> 0;
   }
 
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function digitsOnly(v) { return v == null ? "" : String(v).replace(/\D/g, ""); }
+
+  /* 이벤트 '시간' 파싱: "YYYY-MM-DD HH:MM:SS" 문자열 / Date / Excel serial(raw:true) */
+  function parseTS(v) {
+    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+    if (typeof v === "number") {                 // Excel serial → 로컬 Date 보정
+      var base = new Date(Math.round((v - 25569) * 86400 * 1000));
+      return new Date(base.getTime() + base.getTimezoneOffset() * 60000);
+    }
+    var m = String(v).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{1,2}):(\d{1,2})/);
+    return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+  }
+  /* 새벽 5시 이전 이벤트는 전날 영업일로 귀속(자정 넘긴 공부) */
+  function bizdayOf(dt) {
+    var d = new Date(dt.getTime());
+    if (dt.getHours() < 5) d.setDate(d.getDate() - 1);
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+  function hmsOf(dt) {
+    return dt ? pad2(dt.getHours()) + ":" + pad2(dt.getMinutes()) + ":" + pad2(dt.getSeconds()) : null;
+  }
+  function classNameOf(m) { return (+m.slice(0, 4)) + "년 " + (+m.slice(5, 7)) + "월 정규"; }
+
+  /* 헤더로 이벤트 로그 형식인지 판별 (2열=휴대폰번호 또는 4열=상태) */
+  function isEventLog(rows) {
+    var h = (rows && rows[0]) || [];
+    function norm(x) { return (x == null ? "" : String(x)).replace(/\s+/g, ""); }
+    return norm(h[1]) === "휴대폰번호" || norm(h[3]) === "상태";
+  }
+
   /* 헤더 검증: 첫 행이 기대 컬럼인지 (앞 11열) */
   function validateHeader(rows) {
     if (!rows || rows.length < 2) return { ok: false, error: "데이터 행이 없습니다." };
+    if (isEventLog(rows)) return { ok: true };   // 이벤트 로그는 buildFromEvents에서 처리
     var h = rows[0] || [];
     for (var i = 0; i < HEADERS.length; i++) {
       var got = (h[i] == null ? "" : String(h[i])).replace(/\s+/g, "");
@@ -60,8 +98,10 @@
     return { ok: true };
   }
 
-  /* 행 배열(헤더 포함) → 데이터셋(전화번호 미할당) */
+  /* 행 배열(헤더 포함) → 데이터셋(전화번호 미할당)
+   * 이벤트 로그(inout_log)면 buildFromEvents로, 아니면 세션집계(inout_raw) 경로. */
   function buildFromRows(rows) {
+    if (isEventLog(rows)) return buildFromEvents(rows);
     var v = validateHeader(rows);
     if (!v.ok) return v;
 
@@ -202,6 +242,107 @@
         studentCount: students.length,
         autoCount: data.filter(function (r) { return AUTO[r.reason]; }).length,
       },
+    };
+  }
+
+  /* ── 이벤트 로그 → 데이터셋 ────────────────────────────────────────
+   * 영업일(새벽5시 경계)로 학생별 이벤트를 묶어 구간을 직접 계산.
+   * 입장/재입장→공부 시작, 외출/이동→제외 시작+공부 종료, 퇴장/강제퇴장→종료.
+   * 강제퇴장은 시각이 raw로 남아 그대로 정상 계산(자동퇴장 수동보정 불필요).
+   * day/세션 스키마는 세션집계 경로(buildFromRows)와 동일. */
+  function buildDayFromEvents(evs) {
+    var sessions = [], cur = null, openStudy = null, openBreak = null;
+    function newS(t) {
+      return { in: t, out: null, netSec: 0, excludedSec: 0, outings: 0, forced: false, provisional: false };
+    }
+    evs.forEach(function (e) {
+      var t = e.t, st = e.st;
+      if (IN_EVENTS[st]) {
+        if (cur && openBreak) cur.excludedSec += (t - openBreak) / 1000;
+        openBreak = null;
+        if (!cur) cur = newS(t);
+        openStudy = t;
+      } else if (BREAK_EVENTS[st]) {
+        if (!cur) cur = newS(t);
+        if (openStudy) { cur.netSec += (t - openStudy) / 1000; openStudy = null; }
+        openBreak = t; cur.outings++;
+      } else if (CLOSE_EVENTS[st]) {
+        if (!cur) cur = newS(t);
+        if (openStudy) { cur.netSec += (t - openStudy) / 1000; openStudy = null; }
+        if (openBreak) { cur.excludedSec += (t - openBreak) / 1000; openBreak = null; }
+        cur.out = t;
+        if (st === "퇴장(강제퇴장)") cur.forced = true;
+        sessions.push(cur); cur = null;
+      }
+    });
+    if (cur) { cur.provisional = true; sessions.push(cur); }  // 닫는 퇴장 없음(미완결: 주로 추출 시점 잘림)
+
+    var outS = [], dNet = 0, dTot = 0, dExc = 0, dOut = 0;
+    var gNet = 0, gTot = 0, gExc = 0, gOut = 0, noCheckout = false;
+    sessions.forEach(function (s) {
+      var net = Math.round(s.netSec), exc = Math.round(s.excludedSec), tot = net + exc, prov = s.provisional;
+      outS.push({
+        in: hmsOf(s.in), out: hmsOf(s.out), totalSec: tot, netSec: net, excludedSec: exc,
+        outings: s.outings, reason: s.forced ? "강제퇴장" : (prov ? "미복귀" : "학습시간 인정 완료"),
+        provisional: prov, seat: null,
+      });
+      dNet += net; dTot += tot; dExc += exc; dOut += s.outings;
+      if (prov) noCheckout = true;
+      else { gNet += net; gTot += tot; gExc += exc; gOut += s.outings; }
+    });
+    var firstIn = null, lastOut = null;
+    for (var i = 0; i < outS.length; i++) if (outS[i].in) { firstIn = outS[i].in; break; }
+    for (var j = outS.length - 1; j >= 0; j--) if (outS[j].out) { lastOut = outS[j].out; break; }
+    return {
+      netSec: dNet, totalSec: dTot, excludedSec: dExc, outings: dOut,
+      goodNetSec: gNet, goodTotalSec: gTot, goodExcludedSec: gExc, goodOutings: gOut,
+      firstIn: firstIn, lastOut: lastOut, attended: true, noCheckout: noCheckout, sessions: outS,
+    };
+  }
+
+  function buildFromEvents(rows) {
+    var evs = rows.slice(1)
+      .filter(function (r) { return r && r[0] != null && r[0] !== ""; })
+      .map(function (r) { return { name: String(r[0]).trim(), phone: digitsOnly(r[1]), st: r[3], t: parseTS(r[4]) }; })
+      .filter(function (e) { return e.t !== null; });
+    if (!evs.length) return { ok: false, error: "유효한 이벤트 행이 없습니다. ('시간' 열 형식을 확인하세요)" };
+
+    var blocks = {}, openDays = {}, phoneOf = {};
+    evs.forEach(function (e) {
+      var bd = bizdayOf(e.t), m = bd.slice(0, 7), k = e.name + "	" + bd;
+      (blocks[k] = blocks[k] || []).push(e);
+      (openDays[m] = openDays[m] || {})[bd] = 1;
+      if (!(e.name in phoneOf)) phoneOf[e.name] = e.phone;
+    });
+
+    var tree = {}, provDays = 0;  // name -> month -> {date: day}
+    Object.keys(blocks).forEach(function (k) {
+      var arr = blocks[k].slice().sort(function (a, b) { return a.t - b.t; });
+      var sep = k.indexOf("	"), name = k.slice(0, sep), bd = k.slice(sep + 1), m = bd.slice(0, 7);
+      var day = buildDayFromEvents(arr);
+      if (day.noCheckout) provDays++;
+      ((tree[name] = tree[name] || {})[m] = tree[name][m] || {})[bd] = day;
+    });
+
+    var students = [];
+    Object.keys(tree).sort(function (a, b) { return a.localeCompare(b, "ko"); }).forEach(function (name) {
+      var monthsOut = {};
+      Object.keys(tree[name]).forEach(function (m) {
+        monthsOut[m] = { className: classNameOf(m), openDays: Object.keys(openDays[m]).length, days: tree[name][m] };
+      });
+      var ph = phoneOf[name] || "", l4 = ph.length >= 4 ? ph.slice(-4) : null;
+      var s = { key: name, name: name, seat: null, months: monthsOut };
+      if (l4) { s.phoneLast4 = l4; s.loginPhones = [l4]; }  // 로그의 실제 번호 → crc32 데모로 덮어쓰지 않음
+      students.push(s);
+    });
+
+    var openDaysArr = {};
+    Object.keys(openDays).forEach(function (m) { openDaysArr[m] = Object.keys(openDays[m]).sort(); });
+    var months = Object.keys(openDays).sort();
+    return {
+      ok: true,
+      dataset: { months: months, openDays: openDaysArr, classAverages: {}, students: students },
+      summary: { months: months, rowCount: evs.length, studentCount: students.length, autoCount: provDays },
     };
   }
 
