@@ -1,4 +1,4 @@
-/* 스터디코어 학습 리포트 — 프로토타입 (vanilla JS, 빌드 불필요) */
+/* 스터디코어1.0 학습 리포트 — 프로토타입 (vanilla JS, 빌드 불필요) */
 (function () {
   "use strict";
 

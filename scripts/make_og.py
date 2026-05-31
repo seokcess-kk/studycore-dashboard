@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""스터디코어 학습 리포트 OG 이미지(1200x630) 생성.
+"""스터디코어1.0 학습 리포트 OG 이미지(1200x630) 생성.
 studycore.kr 본사 OG의 톤(딥네이비 + 틸 강조 + Noto Serif/Sans)을 맞춤.
 설치된 브랜드 폰트(NotoSerifKR-VF / NotoSansKR-VF) 사용. 결과: web/og.png + 파비콘/아이콘.
 """
