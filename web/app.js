@@ -645,16 +645,18 @@
     var xaxis = el("div", "hours-x");
     for (var h = start; h <= end; h++) {
       var b = el("div", "hb" + (h === peak ? " peak" : ""));
-      b.style.height = (hours[h] / maxH * 100) + "%";
+      b.style.height = (hours[h] / maxH * 82) + "%";   // 상단 18%는 횟수 라벨 공간
+      if (hours[h] > 0) b.appendChild(el("span", "hb-val", String(hours[h])));
       b.title = h + "시 입실 " + hours[h] + "일";
       bars.appendChild(b);
       xaxis.appendChild(el("div", "hx", (h % 3 === 0) ? h : ""));
     }
     var sec = el("section");
-    sec.appendChild(el("h3", null, "주로 입실한 시간대 <span class='mb-sub'>(첫 입실 기준)</span>"));
+    sec.appendChild(el("h3", null, "주로 입실한 시간대 <span class='mb-sub'>(첫 입실 · 일수)</span>"));
     sec.appendChild(bars);
     sec.appendChild(xaxis);
-    if (peak >= 0) sec.appendChild(el("div", "cc-avg-label", "가장 자주 입실한 시간: " + peak + "시 무렵"));
+    if (peak >= 0 && maxH > 0) sec.appendChild(el("div", "cc-avg-label",
+      "가장 자주 입실한 시간: " + peak + "시 무렵 (" + maxH + "일)"));
     return sec;
   }
 
