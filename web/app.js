@@ -345,22 +345,36 @@
 
   function bar(label, mine, avg, fmt) {
     var max = Math.max(mine, avg, 1);
-    var row = el("div", "cc-row");
-    row.appendChild(el("div", "cc-label",
-      '<span>' + label + '</span><span class="cc-mine">' + fmt(mine) + "</span>"));
+    var diff = mine - avg;
+    var near = Math.abs(diff) < 60;
+    var state = near ? "near" : (diff > 0 ? "over" : "under");
+
+    var row = el("div", "cc-row cc-" + state);
+
+    // 라벨 + 내 값(강조)
+    var head = el("div", "cc-label");
+    head.appendChild(el("span", "cc-name", label));
+    head.appendChild(el("span", "cc-mine", fmt(mine)));
+    row.appendChild(head);
+
+    // 트랙: 내 막대(상태색) + 평균 점선 마커
     var track = el("div", "cc-bar-track");
     var b = el("div", "cc-bar");
     b.style.width = (mine / max * 100) + "%";
+    track.appendChild(b);
     var mark = el("div", "cc-avg-mark");
     mark.style.left = (avg / max * 100) + "%";
-    track.appendChild(b);
     track.appendChild(mark);
     row.appendChild(track);
-    var diff = mine - avg;
-    var cmp;
-    if (Math.abs(diff) < 60) cmp = "반 평균과 비슷해요";
-    else cmp = "반 평균보다 " + fmt(Math.abs(diff)) + (diff > 0 ? " 많아요" : " 적어요");
-    row.appendChild(el("div", "cc-avg-label", "반 평균 " + fmt(avg) + " · " + cmp));
+
+    // 푸터: 반 평균 + 차이 배지
+    var foot = el("div", "cc-foot");
+    foot.appendChild(el("span", "cc-avg-txt", "반 평균 " + fmt(avg)));
+    foot.appendChild(el("span", "cc-badge", near
+      ? "비슷해요"
+      : '<span class="cc-ico">' + (diff > 0 ? "▲" : "▼") + "</span>"
+        + fmt(Math.abs(diff)) + (diff > 0 ? " 많아요" : " 적어요")));
+    row.appendChild(foot);
     return row;
   }
 
@@ -521,10 +535,12 @@
     var ym = currentMonthKey();
     var m = currentMonth();
     var openDaysArr = DATA.openDays[ym] || Object.keys(m.days).sort();
-    var maxNet = 1;
+    var maxNet = 1, peakDay = null, peakNet = -1;
     openDaysArr.forEach(function (d) {
       var info = m.days[d];
-      if (info) maxNet = Math.max(maxNet, info.netSec);
+      var net = info ? info.netSec : 0;
+      if (net > maxNet) maxNet = net;
+      if (net > peakNet) { peakNet = net; peakDay = d; }
     });
 
     var bars = el("div", "bars");
@@ -534,17 +550,41 @@
       var net = info ? info.netSec : 0;
       var weekend = isWeekendStr(d);
       var wrap = el("div", "bar-wrap");
-      var b = el("div", "bar" + (net === 0 ? " zero" : weekend ? " weekend" : ""));
-      if (info && info.noCheckout && net === 0) b.className = "bar nocheck";
+      var cls = "bar" + (net === 0 ? " zero" : weekend ? " weekend" : "");
+      if (info && info.noCheckout && net === 0) cls = "bar nocheck";
+      if (d === peakDay && net > 0) cls += " peak";   // 최고 학습일 강조
+      var b = el("div", cls);
       b.style.height = (net / maxNet * 100) + "%";
-      b.title = (+d.slice(8)) + "일 · " + (info ? fmtHM(net) : "결석");
+      // 막대 위 수치(평소 숨김 → 최고일·선택·호버 시 표시)
+      b.appendChild(el("span", "bar-val", info && net > 0 ? fmtShort(net) : "결석"));
       wrap.appendChild(b);
+      wrap.title = (+d.slice(8)) + "일 · " + (info ? fmtHM(net) : "결석");
       bars.appendChild(wrap);
       var lbl = (+d.slice(8));
       xaxis.appendChild(el("div", "bx", (lbl % 5 === 0 || lbl === 1) ? String(lbl) : ""));
     });
+
+    // 학습일 하루 평균을 가로 점선으로
+    if (m.dailyAvgSec > 0) {
+      var avgLine = el("div", "bar-avg");
+      avgLine.style.bottom = (m.dailyAvgSec / maxNet * 100) + "%";
+      avgLine.appendChild(el("span", "bar-avg-tag", "평균 " + fmtShort(m.dailyAvgSec)));
+      bars.appendChild(avgLine);
+    }
+
+    // 막대를 탭하면 그 날 수치를 고정 표시(모바일 대응)
+    bars.addEventListener("click", function (e) {
+      var t = e.target, wrap = null;
+      while (t && t !== bars) { if (t.className && /\bbar-wrap\b/.test(t.className)) { wrap = t; break; } t = t.parentNode; }
+      if (!wrap) return;
+      var on = wrap.classList.contains("show");
+      var shown = bars.querySelectorAll ? bars.querySelectorAll(".bar-wrap.show") : [];
+      for (var i = 0; i < shown.length; i++) shown[i].classList.remove("show");
+      if (!on) wrap.classList.add("show");
+    });
+
     var sec = el("section");
-    sec.appendChild(el("h3", null, "일별 학습 흐름"));
+    sec.appendChild(el("h3", null, "일별 학습 흐름 <span class='mb-sub'>(막대를 누르면 수치)</span>"));
     sec.appendChild(bars);
     sec.appendChild(xaxis);
     sec.appendChild(el("div", "cc-avg-label",
