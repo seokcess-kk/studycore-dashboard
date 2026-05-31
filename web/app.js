@@ -348,6 +348,19 @@
     wrap.appendChild(grid);
   }
 
+  // 듀얼 바의 한 줄(나 / 반평균) — 같은 max로 스케일해 길이 비교
+  function ccBarRow(kind, name, val, max, fmt) {
+    var r = el("div", "cc-duo-row " + kind);
+    r.appendChild(el("div", "cc-duo-name", name));
+    var track = el("div", "cc-duo-track");
+    var b = el("div", "cc-duo-bar");
+    b.style.width = (val / max * 100) + "%";
+    track.appendChild(b);
+    r.appendChild(track);
+    r.appendChild(el("div", "cc-duo-val", fmt(val)));
+    return r;
+  }
+
   function bar(label, mine, avg, fmt) {
     var max = Math.max(mine, avg, 1);
     var diff = mine - avg;
@@ -355,28 +368,18 @@
     var state = near ? "near" : (diff > 0 ? "over" : "under");
 
     var row = el("div", "cc-row cc-" + state);
+    row.appendChild(el("div", "cc-label", '<span class="cc-name">' + label + "</span>"));
 
-    // 라벨 + 내 값(강조)
-    var head = el("div", "cc-label");
-    head.appendChild(el("span", "cc-name", label));
-    head.appendChild(el("span", "cc-mine", fmt(mine)));
-    row.appendChild(head);
+    // 내 막대 + 반평균 막대를 위아래로 나란히
+    var duo = el("div", "cc-duo");
+    duo.appendChild(ccBarRow("me", "나", mine, max, fmt));
+    duo.appendChild(ccBarRow("avg", "반평균", avg, max, fmt));
+    row.appendChild(duo);
 
-    // 트랙: 내 막대(상태색) + 평균 점선 마커
-    var track = el("div", "cc-bar-track");
-    var b = el("div", "cc-bar");
-    b.style.width = (mine / max * 100) + "%";
-    track.appendChild(b);
-    var mark = el("div", "cc-avg-mark");
-    mark.style.left = (avg / max * 100) + "%";
-    track.appendChild(mark);
-    row.appendChild(track);
-
-    // 푸터: 반 평균 + 차이 배지
+    // 차이 배지
     var foot = el("div", "cc-foot");
-    foot.appendChild(el("span", "cc-avg-txt", "반 평균 " + fmt(avg)));
     foot.appendChild(el("span", "cc-badge", near
-      ? "비슷해요"
+      ? "반 평균과 비슷해요"
       : '<span class="cc-ico">' + (diff > 0 ? "▲" : "▼") + "</span>"
         + fmt(Math.abs(diff)) + (diff > 0 ? " 많아요" : " 적어요")));
     row.appendChild(foot);

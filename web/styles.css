@@ -215,20 +215,22 @@ summary:focus-visible, .cal-cell.clickable:focus-visible {
 .cc-title { font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
 .cc-row { margin-bottom: 18px; }
 .cc-row:last-child { margin-bottom: 0; }
-.cc-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 6px; }
-.cc-name { color: var(--ink); }
-.cc-mine { color: var(--primary); font-weight: 700; font-size: 16px; font-family: var(--font-mono); }
-.cc-bar-track { background: var(--track); border-radius: 8px; height: 24px; position: relative; overflow: hidden; }
-.cc-bar { height: 100%; border-radius: 8px; min-width: 3px; transition: width .45s ease; }
-.cc-over .cc-bar { background: var(--good); }
-.cc-under .cc-bar { background: var(--neutral-bar); }
-.cc-near .cc-bar { background: var(--accent); }
-/* 평균 위치: 점선 세로 마커 + 상단 ▽ */
-.cc-avg-mark { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed rgba(25, 25, 25, .5); }
-.cc-avg-mark::after { content: ""; position: absolute; top: 0; left: -4px; border: 4px solid transparent; border-top-color: rgba(25, 25, 25, .55); }
-.cc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-.cc-avg-txt { font-size: 12px; color: var(--ink-soft); }
-.cc-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.cc-label { font-size: 13px; margin-bottom: 8px; }
+.cc-name { color: var(--ink); font-weight: 600; }
+/* 듀얼 바 — 나 / 반평균을 같은 기준으로 나란히 비교 */
+.cc-duo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.cc-duo-name { flex: 0 0 38px; font-size: 11px; color: var(--ink-soft); }
+.cc-duo-track { flex: 1; height: 16px; background: var(--track); border-radius: 6px; overflow: hidden; }
+.cc-duo-bar { height: 100%; border-radius: 6px; min-width: 2px; transition: width .45s ease; }
+.cc-duo-row.avg .cc-duo-bar { background: var(--neutral-bar); }
+.cc-over .cc-duo-row.me .cc-duo-bar { background: var(--good); }
+.cc-under .cc-duo-row.me .cc-duo-bar { background: var(--neutral-bar); }
+.cc-near .cc-duo-row.me .cc-duo-bar { background: var(--accent); }
+.cc-duo-val { flex: 0 0 auto; min-width: 50px; text-align: right; font-size: 12px; font-family: var(--font-mono); }
+.cc-duo-row.me .cc-duo-val { color: var(--primary); font-weight: 700; }
+.cc-duo-row.avg .cc-duo-val { color: var(--ink-soft); }
+.cc-foot { margin-top: 4px; padding-left: 46px; }
+.cc-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
 .cc-badge .cc-ico { font-size: 9px; margin-right: 2px; }
 .cc-over .cc-badge { background: rgba(31, 138, 91, .12); color: var(--good); }
 .cc-under .cc-badge { background: rgba(217, 119, 6, .12); color: var(--nocheck); }
