@@ -786,6 +786,8 @@
   }
 
   // 일반 리포트 화면에서 관리자 Supabase 세션이 감지되면 관리자 바를 노출한다.
+  // restoreSession()과 동시에(fire-and-forget) 돌지만, 학부모는 Supabase 세션이
+  // 없고 관리자는 저장된 학부모 세션이 없어 두 경로는 사실상 상호배타적이다.
   function checkAdminSession() {
     if (!REMOTE || !window.SCApi || typeof window.SCApi.currentUser !== "function") return;
     window.SCApi.currentUser().then(function (u) {
