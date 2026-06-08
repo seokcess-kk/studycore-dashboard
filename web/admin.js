@@ -470,8 +470,7 @@
     var payload = window.SCPreview.buildPreviewPayload(student, DATA, corrSource);
     var ok = window.SCPreview.writeBuffer(payload);
     if (!ok) { window.alert("미리보기 데이터를 준비하지 못했습니다."); return; }
-    var win = window.open("index.html", "_blank");
-    if (!win) window.alert("팝업이 차단되었습니다. 이 사이트의 새 탭 열기를 허용해 주세요.");
+    window.location.href = "index.html"; // 같은 탭에서 리포트로 전환
   }
 
   function renderReportResults() {
@@ -500,7 +499,7 @@
       info.appendChild(el("div", "rs-meta", metaBits.join(" · ")));
       row.appendChild(info);
 
-      var btn = el("button", "rs-open", "리포트 ↗");
+      var btn = el("button", "rs-open", "리포트 보기");
       btn.type = "button";
       btn.addEventListener("click", function () { openReport(s); });
       row.appendChild(btn);
