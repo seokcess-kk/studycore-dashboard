@@ -361,8 +361,8 @@
     return r;
   }
 
-  function bar(label, mine, avg, fmt) {
-    var max = Math.max(mine, avg, 1);
+  function bar(label, mine, avg, top, fmt) {
+    var max = Math.max(mine, avg, top || 0, 1);
     var diff = mine - avg;
     var near = Math.abs(diff) < 60;
     var state = near ? "near" : (diff > 0 ? "over" : "under");
@@ -370,10 +370,11 @@
     var row = el("div", "cc-row cc-" + state);
     row.appendChild(el("div", "cc-label", '<span class="cc-name">' + label + "</span>"));
 
-    // 내 막대 + 반평균 막대를 위아래로 나란히
+    // 내 막대 + 반평균 + 상위 20% 막대를 위아래로 나란히
     var duo = el("div", "cc-duo");
     duo.appendChild(ccBarRow("me", "나", mine, max, fmt));
     duo.appendChild(ccBarRow("avg", "반평균", avg, max, fmt));
+    if (top) duo.appendChild(ccBarRow("top", "상위 20%", top, max, fmt));
     row.appendChild(duo);
 
     // 차이 배지
@@ -395,8 +396,8 @@
     if (!ca) return;
     box.appendChild(el("div", "cc-title",
       "같은 반과 비교 <span style='color:#9aa1ad'>(익명 · " + ca.studentCount + "명)</span>"));
-    box.appendChild(bar("이번 달 순공부시간", m.totalNetSec, ca.totalNetSec, fmtHM));
-    box.appendChild(bar("학습일 하루 평균", m.dailyAvgSec, ca.dailyAvgSec, fmtHM));
+    box.appendChild(bar("이번 달 순공부시간", m.totalNetSec, ca.totalNetSec, ca.top20TotalNetSec, fmtHM));
+    box.appendChild(bar("학습일 하루 평균", m.dailyAvgSec, ca.dailyAvgSec, ca.top20DailyAvgSec, fmtHM));
   }
 
   // 헤더 메타: 학년 · 학교 · 좌석 · 반

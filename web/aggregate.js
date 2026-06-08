@@ -7,6 +7,12 @@
   function dowOf(d) { return new Date(d + "T00:00:00").getDay(); }
   function isWeekend(d) { var w = dowOf(d); return w === 0 || w === 6; }
   function mean(a) { return a.length ? Math.round(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : 0; }
+  // 상위 frac 비율 학생들만의 평균(내림차순 정렬 후 상위 N명, 최소 1명)
+  function topMean(a, frac) {
+    if (!a.length) return 0;
+    var sorted = a.slice().sort(function (x, y) { return y - x; });
+    return mean(sorted.slice(0, Math.max(1, Math.ceil(sorted.length * frac))));
+  }
 
   // student: { key,name,seat,months:{ym:{className,openDays,days}} }
   // getCorr(studentKey, date) -> 보정 payload 또는 null
@@ -85,6 +91,8 @@
         studentCount: b.tot.length, totalNetSec: mean(b.tot),
         attendanceDays: b.att.length ? Math.round(b.att.reduce(function (x, y) { return x + y; }, 0) / b.att.length * 10) / 10 : 0,
         dailyAvgSec: mean(b.daily), weekdayAvgSec: mean(b.wd), weekendAvgSec: mean(b.we),
+        top20Count: Math.max(1, Math.ceil(b.tot.length * 0.2)),
+        top20TotalNetSec: topMean(b.tot, 0.2), top20DailyAvgSec: topMean(b.daily, 0.2),
       };
     });
     return out;

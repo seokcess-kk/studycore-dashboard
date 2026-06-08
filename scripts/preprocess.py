@@ -20,6 +20,7 @@ inout_log.xlsx (이벤트 로그) + student-info.xlsx (명부) -> web/data.js
 """
 import io
 import json
+import math
 import os
 import sys
 import datetime
@@ -279,6 +280,13 @@ def build():
         students.append(st_obj)
 
     # 반 평균(익명)
+    def top_mean(vals, frac=0.2):
+        if not vals:
+            return 0
+        s = sorted(vals, reverse=True)
+        k = max(1, math.ceil(len(s) * frac))
+        return round(sum(s[:k]) / k)
+
     class_averages = {}
     for m, acc in class_acc.items():
         n = len(acc["totalNetSec"])
@@ -291,6 +299,9 @@ def build():
             if acc["weekdayAvgSec"] else 0,
             "weekendAvgSec": round(sum(acc["weekendAvgSec"]) / len(acc["weekendAvgSec"]))
             if acc["weekendAvgSec"] else 0,
+            "top20Count": max(1, math.ceil(n * 0.2)) if n else 0,
+            "top20TotalNetSec": top_mean(acc["totalNetSec"]),
+            "top20DailyAvgSec": top_mean(acc["dailyAvgSec"]),
         }
 
     all_months = sorted(open_days.keys())
