@@ -509,7 +509,8 @@
     });
   }
 
-  // 데이터 의존 렌더만(이벤트 바인딩 없음 — 백그라운드 갱신 때 재호출해도 안전)
+  // 데이터 의존 렌더만. renderLoadedInfo가 리스너를 달지만 매번 innerHTML을 비우고
+  // 새 요소를 만들므로 반복 호출해도 리스너가 누적되지 않는다(백그라운드 갱신 때 안전).
   function renderData() {
     fillMonthFilter();
     renderList();
@@ -561,12 +562,15 @@
     var cached = window.SCCache ? window.SCCache.get() : null;
     if (cached && cached.dataset) {
       DATA = cached.dataset; corrMap = cached.corrections || {};
+      var cachedRaw = JSON.stringify(cached);
       revealMain();
       startApp();
       window.SCApi.loadAll().then(function (r) {
+        // 데이터가 그대로면 재렌더하지 않는다(작업 중 화면 깜빡임 방지).
+        if (JSON.stringify(r) === cachedRaw) return;
         DATA = r.dataset; corrMap = r.corrections || {};
         if (window.SCCache) window.SCCache.set(r);
-        renderData(); // 리스너 재바인딩 없이 목록만 갱신
+        renderData(); // 변경분만 다시 그림(리스너 재바인딩 없음)
       }).catch(function () { /* 백그라운드 실패는 캐시 화면 유지 */ });
       return Promise.resolve();
     }
