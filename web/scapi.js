@@ -34,18 +34,23 @@
     return r.data;
   }
   async function adminSignOut() { try { await client().auth.signOut(); } catch (e) {} }
+  // UI 게이트 결정용 — getSession은 로컬 토큰을 즉시 반환(네트워크 왕복 없음).
+  // 실제 데이터 접근은 RLS가 보호하고, 만료 토큰은 autoRefreshToken으로 갱신된다.
   async function currentUser() {
-    var r = await client().auth.getUser();
-    return (r.data && r.data.user) || null;
+    var r = await client().auth.getSession();
+    return (r.data && r.data.session && r.data.session.user) || null;
   }
 
   /* ---------- 원장: 전체 데이터 로드(보정 목록·업로드 병합용) ---------- */
   async function loadAll() {
-    var metaR = await client().from("rpt_meta").select("*").eq("id", 1).maybeSingle();
+    var results = await Promise.all([
+      client().from("rpt_meta").select("*").eq("id", 1).maybeSingle(),
+      client().from("rpt_students").select("*"),
+      client().from("rpt_corrections").select("*"),
+    ]);
+    var metaR = results[0], stuR = results[1], corrR = results[2];
     if (metaR.error) throw metaR.error;
-    var stuR = await client().from("rpt_students").select("*");
     if (stuR.error) throw stuR.error;
-    var corrR = await client().from("rpt_corrections").select("*");
     if (corrR.error) throw corrR.error;
 
     var meta = metaR.data || { months: [], open_days: {}, class_averages: {} };
