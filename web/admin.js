@@ -462,15 +462,64 @@
     });
   }
 
+  /* ---------- 학생 리포트 검색·미리보기 ---------- */
+  function openReport(student) {
+    var corrSource = REMOTE
+      ? corrMap
+      : (window.SCCorr && window.SCCorr.loadAll ? window.SCCorr.loadAll() : {});
+    var payload = window.SCPreview.buildPreviewPayload(student, DATA, corrSource);
+    var ok = window.SCPreview.writeBuffer(payload);
+    if (!ok) { window.alert("미리보기 데이터를 준비하지 못했습니다."); return; }
+    var win = window.open("index.html", "_blank");
+    if (!win) window.alert("팝업이 차단되었습니다. 이 사이트의 새 탭 열기를 허용해 주세요.");
+  }
+
+  function renderReportResults() {
+    var box = $("report-results");
+    if (!box) return;
+    var term = ($("report-search").value || "").trim();
+    box.innerHTML = "";
+    if (!term) return; // 입력 시에만 표시
+
+    var matches = window.SCPreview.filterReportStudents(DATA.students, term)
+      .sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", "ko"); });
+
+    if (!matches.length) {
+      box.appendChild(el("div", "rs-empty", "검색 결과가 없습니다."));
+      return;
+    }
+
+    matches.forEach(function (s) {
+      var row = el("div", "rs-row");
+      var info = el("div", "rs-info");
+      info.appendChild(el("div", "rs-name", s.name));
+      var metaBits = [];
+      var meta = window.SCPreview.studentRowMeta(s);
+      if (meta) metaBits.push(meta);
+      metaBits.push(Object.keys(s.months).length + "개월 데이터");
+      info.appendChild(el("div", "rs-meta", metaBits.join(" · ")));
+      row.appendChild(info);
+
+      var btn = el("button", "rs-open", "리포트 ↗");
+      btn.type = "button";
+      btn.addEventListener("click", function () { openReport(s); });
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+  }
+
   // 데이터 준비된 뒤 화면 구성
   function startApp() {
     setupUpload();
     setupRoster();
     initMonthFilter();
     renderList();
+    renderReportResults();
   }
 
   function wireHandlers() {
+    var rs = $("report-search");
+    if (rs) rs.addEventListener("input", function () { renderReportResults(); });
     $("admin-search").addEventListener("input", function () { renderList(); });
     $("admin-sort").addEventListener("change", function () { renderList(); });
     $("btn-calc").addEventListener("click", function () { showResult(C.parseEventLog($("corr-input").value)); });
