@@ -188,6 +188,7 @@
       if (REMOTE) {
         btn.disabled = true;
         window.SCApi.saveCorrection(key, date, payload).then(function () {
+          if (window.SCCache) window.SCCache.clear();
           corrMap[key + "|" + date] = payload; closeModal(); renderList();
         }).catch(function (ex) { btn.disabled = false; window.alert("저장하지 못했습니다: " + (ex.message || ex)); });
       } else {
@@ -198,7 +199,8 @@
     box.appendChild(save);
   }
 
-  function initMonthFilter() {
+  // 월 필터 옵션만 채운다(멱등). change 리스너는 startApp에서 1회 바인딩.
+  function fillMonthFilter() {
     var sel = $("filter-month");
     sel.innerHTML = "<option value='all'>전체 월</option>";
     DATA.months.forEach(function (m) {
@@ -206,7 +208,6 @@
       o.textContent = (+m.slice(0, 4)) + "년 " + (+m.slice(5, 7)) + "월";
       sel.appendChild(o);
     });
-    sel.addEventListener("change", function () { monthFilter = sel.value; renderList(); });
   }
 
   /* ---------- 엑셀 업로드 ---------- */
@@ -229,7 +230,7 @@
         (rc ? " · 연락처 <b>" + rc + "명</b>" : " · <span style='color:#c0392b'>명부 없음</span>")));
       var right = el("div", null, "");
       var out = el("button", null, "로그아웃");
-      out.addEventListener("click", function () { window.SCApi.adminSignOut().then(function () { window.location.reload(); }); });
+      out.addEventListener("click", function () { if (window.SCCache) window.SCCache.clear(); window.SCApi.adminSignOut().then(function () { window.location.reload(); }); });
       right.appendChild(out);
       box.appendChild(right);
       return;
@@ -311,6 +312,7 @@
         merged.classAverages = window.SCAgg.computeClassAverages(merged, getCorr);
         btn.disabled = true; uMsg("저장 중입니다.", "");
         window.SCApi.saveDataset(merged).then(function () {
+          if (window.SCCache) window.SCCache.clear();
           uMsg("반영했습니다. 화면을 새로고침합니다.", "ok");
           window.setTimeout(function () { window.location.reload(); }, 700);
         }).catch(function (ex) { btn.disabled = false; uMsg("저장하지 못했습니다: " + (ex.message || ex), "err"); });
@@ -358,7 +360,6 @@
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       handleFile(f);
     });
-    renderLoadedInfo();
   }
 
   /* ---------- 학생 명부 업로드 ---------- */
@@ -413,6 +414,7 @@
       window.SCIngest.assignPhones(res.dataset.students); // 연락처 없는 학생엔 데모번호 보충
       btn.disabled = true; rMsg("저장 중입니다.", "");
       window.SCApi.saveDataset(res.dataset).then(function () {
+        if (window.SCCache) window.SCCache.clear();
         rMsg("명부를 반영했습니다. 화면을 새로고침합니다.", "ok");
         window.setTimeout(function () { window.location.reload(); }, 700);
       }).catch(function (ex) { btn.disabled = false; rMsg("저장하지 못했습니다: " + (ex.message || ex), "err"); });
@@ -507,13 +509,19 @@
     });
   }
 
-  // 데이터 준비된 뒤 화면 구성
+  // 데이터 의존 렌더만(이벤트 바인딩 없음 — 백그라운드 갱신 때 재호출해도 안전)
+  function renderData() {
+    fillMonthFilter();
+    renderList();
+    renderReportResults();
+    renderLoadedInfo();
+  }
+  // 최초 1회: 이벤트 바인딩(setup) + 첫 렌더. 재호출 금지(리스너 중복).
   function startApp() {
     setupUpload();
     setupRoster();
-    initMonthFilter();
-    renderList();
-    renderReportResults();
+    $("filter-month").addEventListener("change", function () { monthFilter = $("filter-month").value; renderList(); });
+    renderData();
   }
 
   function wireHandlers() {
@@ -527,6 +535,7 @@
       var key = current.key, date = current.date;
       if (REMOTE) {
         window.SCApi.removeCorrection(key, date).then(function () {
+          if (window.SCCache) window.SCCache.clear();
           delete corrMap[key + "|" + date]; closeModal(); renderList();
         }).catch(function (ex) { window.alert("삭제하지 못했습니다: " + (ex.message || ex)); });
       } else { C.remove(key, date); closeModal(); renderList(); }
@@ -542,11 +551,29 @@
     $("admin-auth").hidden = false;
   }
 
+  function revealMain() {
+    var chk = $("admin-checking"); if (chk) chk.hidden = true;
+    $("admin-auth").hidden = true; $("admin-main").hidden = false;
+  }
+
   function afterLogin() {
+    // 캐시가 있으면 즉시 렌더(체감 0 지연) 후 백그라운드로 최신 데이터 갱신.
+    var cached = window.SCCache ? window.SCCache.get() : null;
+    if (cached && cached.dataset) {
+      DATA = cached.dataset; corrMap = cached.corrections || {};
+      revealMain();
+      startApp();
+      window.SCApi.loadAll().then(function (r) {
+        DATA = r.dataset; corrMap = r.corrections || {};
+        if (window.SCCache) window.SCCache.set(r);
+        renderData(); // 리스너 재바인딩 없이 목록만 갱신
+      }).catch(function () { /* 백그라운드 실패는 캐시 화면 유지 */ });
+      return Promise.resolve();
+    }
     return window.SCApi.loadAll().then(function (r) {
       DATA = r.dataset; corrMap = r.corrections || {};
-      var chk = $("admin-checking"); if (chk) chk.hidden = true;
-      $("admin-auth").hidden = true; $("admin-main").hidden = false;
+      if (window.SCCache) window.SCCache.set(r);
+      revealMain();
       startApp();
     }).catch(function (ex) {
       var err = $("auth-error");
