@@ -766,9 +766,11 @@
   function showPreviewBanner(student) {
     var b = $("preview-banner");
     if (!b) return;
-    b.innerHTML = '<span class="pv-tag">관리자 미리보기</span>' +
-      '<span class="pv-txt">' + (student.name || "") +
-      ' 학생 · 학부모에게 보이는 화면입니다.</span>';
+    b.innerHTML = "";
+    b.appendChild(el("span", "pv-tag", "관리자 미리보기"));
+    var tx = el("span", "pv-txt");
+    tx.textContent = (student.name || "") + " 학생 · 학부모에게 보이는 화면입니다.";
+    b.appendChild(tx);
     b.hidden = false;
   }
 
