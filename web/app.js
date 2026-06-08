@@ -380,8 +380,8 @@
     // 차이 배지
     var foot = el("div", "cc-foot");
     foot.appendChild(el("span", "cc-badge", near
-      ? "반 평균과 비슷해요"
-      : '<span class="cc-ico">' + (diff > 0 ? "▲" : "▼") + "</span>"
+      ? "반평균과 비슷해요"
+      : '반평균보다 <span class="cc-ico">' + (diff > 0 ? "▲" : "▼") + "</span>"
         + fmt(Math.abs(diff)) + (diff > 0 ? " 많아요" : " 적어요")));
     row.appendChild(foot);
     return row;
