@@ -43,15 +43,16 @@
 
 - admin 헤더 아래, "출결 엑셀 업로드" 섹션 **위**에 새 `<section class="report-search-card">` 추가.
 - 구성: 제목("학생 리포트 보기") + 검색 `<input type="search">` + 결과 목록 컨테이너.
-- 결과 목록의 각 행: `이름 · N반 / M번` + 데이터가 있는 월 수(예: "5개월") + "리포트 ↗" 버튼.
+- 결과 목록의 각 행: `이름 · 학년 · N번 좌석` + 데이터가 있는 월 수(예: "5개월") + "리포트 ↗" 버튼. (데이터 모델에 "반" 필드는 없음 — `seat`/`profile.grade` 사용.)
 - 데이터(`DATA`)가 아직 로드되지 않았으면 비활성/안내. 로컬 모드(비로그인)에서도 `DATA.students`가 있으면 동작.
 
 ### 2. 검색·핸드오프 로직 — `web/admin.js`
 
-- **검색 필터**: `DATA.students` 중 `months` 키가 1개 이상인 학생만 대상. 이름 부분일치(소문자 정규화, 한글 그대로). 입력이 비면 결과 숨김(목록 폭주 방지) 또는 전체 — 입력 시에만 표시한다.
-- **동명이인**: 같은 이름이 여러 명이면 행에 반/좌석을 함께 표기해 구분.
+- **검색 필터**: `DATA.students` 중 `months` 키가 1개 이상인 학생만 대상. 이름 부분일치(소문자 정규화, 한글 그대로). 입력이 비면 결과 숨김(입력 시에만 표시).
+- **동명이인**: 같은 이름이 여러 명이면 행에 좌석·학년을 함께 표기해 구분.
+- **모듈 분리**: `buildPreviewPayload`·검색 필터·핸드오프 버퍼 헬퍼는 신규 파일 **`web/preview.js`**(`window.SCPreview` + `module.exports` 양쪽 export, 기존 `roster.js`/`aggregate.js` 패턴)에 두어 Node 단위 테스트가 가능하게 한다. `admin.html`·`index.html` 양쪽에서 로드.
 - **핸드오프**:
-  - 순수 함수 `buildPreviewPayload(student, DATA, corrMap)` 로 분리 → `{ student, months, openDays, classAverages, corrections }` 반환.
+  - 순수 함수 `SCPreview.buildPreviewPayload(student, DATA, corrMap)` → `{ student, months, openDays, classAverages, corrections }` 반환.
     - `months`: `DATA.months`
     - `openDays`: `DATA.openDays`
     - `classAverages`: `DATA.classAverages`
