@@ -40,6 +40,14 @@
     </section>
 
     <div id="admin-main">
+    <!-- 학생 리포트 검색·미리보기 -->
+    <section class="report-search-card">
+      <h2>학생 리포트 보기</h2>
+      <p class="rs-sub">이름을 검색해 학부모에게 보이는 리포트를 새 탭에서 확인합니다.</p>
+      <input type="search" id="report-search" class="report-search-input"
+             placeholder="학생 이름 검색" autocomplete="off" />
+      <div id="report-results" class="report-results"></div>
+    </section>
     <!-- 엑셀 업로드 -->
     <section class="upload-card">
       <h2>출결 엑셀 업로드</h2>
@@ -130,6 +138,7 @@
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="ingest.js"></script>
   <script src="roster.js"></script>
+  <script src="preview.js"></script>
   <script src="corrections.js"></script>
   <script src="admin.js"></script>
 </body>

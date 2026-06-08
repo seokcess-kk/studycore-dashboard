@@ -117,3 +117,21 @@ body.admin { background: #f4f2ee; }
 .flag-group > summary:hover { background: #faf9f6; }
 .admin-toolbar select:hover, .admin-toolbar .admin-search:hover { border-color: #b9b3aa; }
 .upload-drop:hover { border-color: #b9b3aa; }
+
+/* 학생 리포트 검색·미리보기 */
+.report-search-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 18px 14px; margin-bottom:18px; }
+.report-search-card h2 { margin:0 0 4px; }
+.report-search-card .rs-sub { margin:0 0 12px; color:#64748b; font-size:13px; }
+.report-search-input { width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; }
+.report-search-input:focus { outline:none; border-color:#103050; box-shadow:0 0 0 3px rgba(16,48,80,.12); }
+.report-results { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.report-results:empty { margin-top:0; }
+.rs-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:10px 12px; border:1px solid #eef1f4; border-radius:8px; }
+.rs-row .rs-info { min-width:0; }
+.rs-row .rs-name { font-weight:700; color:#103050; }
+.rs-row .rs-meta { font-size:12px; color:#64748b; margin-top:2px; }
+.rs-row .rs-open { display:inline-block; padding:6px 12px; border-radius:6px;
+  background:#103050; color:#fff; font-size:13px; font-weight:600; border:0; cursor:pointer; white-space:nowrap; }
+.rs-row .rs-open:hover { background:#0b2238; }
+.rs-empty { color:#94a3b8; font-size:13px; padding:8px 2px; }
