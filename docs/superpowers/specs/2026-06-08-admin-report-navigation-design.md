@@ -74,16 +74,18 @@ admin 학생 검색 ──(같은 탭)──▶ 학생 리포트(미리보기)
 - **`currentUser()` 네트워크 오류**: catch에서 무시 → 바 미노출(학부모 화면과 동일). 관리자 동선만 잠시 안 보일 뿐 리포트 자체는 정상.
 - **같은 탭 이동 후 새로고침**: 미리보기는 sessionStorage로 유지(기존과 동일). 일반 모드는 `checkAdminSession`이 다시 확인.
 - **버퍼 잔존 방지**: 같은 탭 이동이어도 `takePreview`가 부팅 즉시 localStorage 버퍼를 소비·삭제하므로 이후 일반 방문에 누수 없음(기존과 동일).
+- **stale 미리보기 재진입 방지(같은 탭 전환에서 생기는 문제)**: `takePreview`는 새로고침 유지를 위해 미리보기를 sessionStorage에 남긴다. 새 탭 시절엔 탭을 닫으면 사라졌지만, 같은 탭 전환에서는 탭이 살아 있어 잔재가 남는다. 그대로 두면 `admin → 리포트보기 → 관리자 화면으로 → (admin의 "리포트 화면" 링크) → index.html`에서 stale 미리보기가 다시 떠 관리자가 미리보기에 갇힌다. 해결: 관리자가 admin 화면에 들어오면 미리보기 컨텍스트가 끝난 것이므로, **`admin.js`의 `init()` 첫 머리에서 `SCPreview.clearPreview()`로 버퍼·세션 잔재를 정리**한다. 미리보기 화면의 새로고침은 admin을 거치지 않으므로 유지된다(의도 보존).
 - **관리자 바 노출 타이밍**: `currentUser()`가 비동기라 리포트가 먼저 그려지고 바가 약간 뒤에 나타날 수 있다(허용).
 
 ## 변경 파일 요약
 
 | 파일 | 변경 |
 | --- | --- |
-| `web/admin.js` | `openReport` 같은 탭 이동·팝업 alert 제거, 버튼 라벨 "리포트 보기" |
+| `web/admin.js` | `openReport` 같은 탭 이동·팝업 alert 제거, 버튼 라벨 "리포트 보기", `init()`에서 `clearPreview()` 호출 |
 | `web/index.html` | `#preview-banner` → `#admin-bar` |
 | `web/app.js` | `showPreviewBanner`→`renderAdminBar(opts)` 일반화 + 버튼, `checkAdminSession()` 부팅 호출 |
 | `web/styles.css` | `.preview-banner`→`.admin-bar`, `[관리자 화면으로]` 버튼 스타일 |
+| `web/preview.js` | `clearPreview()` 추가(미리보기 버퍼·세션 잔재 정리) |
 
 ## 범위 밖 (YAGNI)
 
