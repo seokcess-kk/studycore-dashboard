@@ -30,7 +30,7 @@
     var bits = [];
     var prof = s.profile || {};
     if (prof.grade) bits.push(prof.grade);
-    if (s.seat) bits.push(s.seat + "번 좌석");
+    if (s.seat) bits.push(s.seat + "번 좌석"); // 좌석은 1번부터 — 0/누락은 표기 생략
     return bits.join(" · ");
   }
 

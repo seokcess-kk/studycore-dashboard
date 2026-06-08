@@ -44,4 +44,27 @@ console.log("== studentRowMeta ==");
 const meta = P.studentRowMeta(DATA.students[0]);
 assert(meta.indexOf("고2") >= 0 && meta.indexOf("12번 좌석") >= 0, "메타에 학년·좌석: " + meta);
 
+console.log("== writeBuffer / takePreview (mock storage) ==");
+function mkStore() {
+  var m = {};
+  return {
+    getItem: function (k) { return Object.prototype.hasOwnProperty.call(m, k) ? m[k] : null; },
+    setItem: function (k, v) { m[k] = String(v); },
+    removeItem: function (k) { delete m[k]; },
+    _raw: m,
+  };
+}
+global.window = { localStorage: mkStore(), sessionStorage: mkStore() };
+
+assert(P.takePreview() === null, "버퍼 없으면 null");
+assert(P.writeBuffer(payload) === true, "writeBuffer 성공 시 true");
+assert(global.window.localStorage.getItem(P.BUFFER_KEY) != null, "localStorage 버퍼에 기록됨");
+var taken = P.takePreview();
+assert(taken && taken.student && taken.student.name === "김민준", "takePreview가 payload 복원");
+assert(global.window.localStorage.getItem(P.BUFFER_KEY) === null, "버퍼는 소비 후 삭제됨");
+assert(global.window.sessionStorage.getItem(P.SESSION_KEY) != null, "sessionStorage로 이동됨");
+var again = P.takePreview();
+assert(again && again.student.name === "김민준", "새로고침 케이스: sessionStorage에서 다시 읽음");
+delete global.window;
+
 console.log("\n완료");
