@@ -372,11 +372,15 @@ summary:focus-visible, .cal-cell.clickable:focus-visible {
   .monthly-body > section { margin-bottom: 14px; }
 }
 
-/* 관리자 미리보기 배너 */
-.preview-banner { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+/* 관리자 컨텍스트 바 (미리보기 / 일반 관리자 세션 공용) */
+.admin-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
   background:#fef3c7; border-bottom:2px solid #f59e0b; color:#7c2d12;
   padding:8px 14px; font-size:13px; position:sticky; top:0; z-index:50; }
-.preview-banner .pv-tag { background:#b45309; color:#fff; border-radius:4px;
+.admin-bar .pv-tag { background:#b45309; color:#fff; border-radius:4px;
   padding:2px 8px; font-weight:700; font-size:12px; }
-.preview-banner .pv-txt { font-weight:500; }
+.admin-bar .pv-txt { font-weight:500; }
+.admin-bar .pv-admin-btn { margin-left:auto; flex-shrink:0;
+  background:#7c2d12; color:#fff; border:0; border-radius:6px;
+  padding:6px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+.admin-bar .pv-admin-btn:hover { background:#601f0c; }
 body.preview-mode #btn-logout { display:none; }

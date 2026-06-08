@@ -60,14 +60,17 @@ async function parentTest() {
   const PIDS = ["view-login", "view-calendar", "view-monthly", "day-modal", "day-modal-body",
     "in-name", "in-phone", "login-error", "login-form", "demo-list", "demo-box",
     "cal-student", "cal-meta", "btn-logout", "prev-month", "next-month", "cal-month-title",
-    "data-status", "summary-grid", "calendar", "class-compare", "btn-monthly", "btn-back-cal", "monthly-title", "monthly-body"];
+    "data-status", "summary-grid", "calendar", "class-compare", "btn-monthly", "btn-back-cal", "monthly-title", "monthly-body", "admin-bar"];
   const { reg, doc } = mkDoc(PIDS, ["view-login", "view-calendar", "view-monthly"]);
+  reg["admin-bar"].hidden = true; // index.html의 `hidden` 속성(초기 미노출) 반영
   let getReportArgs = null;
+  let parentAdminSignedIn = false;
   const windowObj = {
     scrollTo() {}, location: { search: "", protocol: "https:", hostname: "report.studycore.kr" },
     SCApi: {
       enabled: () => true,
       getReport: (name, phone) => { getReportArgs = { name, phone }; return Promise.resolve(name === "정훈" && phone === "9402" ? REPORT : null); },
+      currentUser: () => Promise.resolve(parentAdminSignedIn ? { email: "admin@studycore.kr" } : null),
     },
   };
   const pls = {};
@@ -88,6 +91,8 @@ async function parentTest() {
   fire(reg["login-form"], "submit"); await tick();
   assert(getReportArgs && getReportArgs.name === "정훈", "RPC 호출됨(이름·전화 전달)");
   assert(reg["view-calendar"].classList.contains("active"), "달력 화면 활성화");
+  await tick(); // checkAdminSession(비동기) 완료 대기
+  assert(reg["admin-bar"].hidden !== false, "학부모(관리자 세션 없음) → 관리자 바 미노출");
   assert(reg["cal-month-title"].textContent === "2026년 4월", "월 타이틀: " + reg["cal-month-title"].textContent);
   assert(reg["summary-grid"].children.length === 4, "요약 카드 4개");
   assert(countByHtml(reg["calendar"], "⚠️") === 1, "자동퇴장(잠정) ⚠️ 1개");
@@ -115,6 +120,17 @@ async function parentTest() {
   await tick();
   assert(reg2["view-calendar"].classList.contains("active"), "새로고침 시 세션 자동 복원(로그인 유지)");
   assert(reg2["cal-student"].textContent.indexOf("정훈") >= 0, "복원된 학생: " + reg2["cal-student"].textContent);
+
+  // 관리자 세션이 있는 채로 리포트 페이지를 부팅하면 관리자 바가 노출된다
+  parentAdminSignedIn = true;
+  const emptyLS = { getItem: () => null, setItem() {}, removeItem() {} };
+  const { reg: reg3, doc: doc3 } = mkDoc(PIDS, ["view-login", "view-calendar", "view-monthly"]);
+  const ctx3 = { window: { scrollTo() {}, location: windowObj.location, SCApi: windowObj.SCApi }, document: doc3, Date, Math, console, setImmediate, localStorage: emptyLS };
+  vm.createContext(ctx3);
+  ["aggregate.js", "corrections.js", "app.js"].forEach(f => vm.runInContext(fs.readFileSync(path.join(WEB, f), "utf8"), ctx3));
+  await tick();
+  assert(reg3["admin-bar"].hidden === false, "관리자 세션 감지 → 관리자 바 노출");
+  parentAdminSignedIn = false;
 }
 
 async function adminTest() {

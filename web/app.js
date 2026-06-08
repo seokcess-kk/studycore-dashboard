@@ -762,16 +762,35 @@
     body.appendChild(keyMetricsBlock());
   }
 
-  /* ---------- 관리자 미리보기 모드 ---------- */
-  function showPreviewBanner(student) {
-    var b = $("preview-banner");
+  /* ---------- 관리자 컨텍스트 바 ---------- */
+  // opts.preview: 미리보기 모드(학생 리포트) / 그 외: 일반 리포트 + 관리자 세션
+  function renderAdminBar(opts) {
+    opts = opts || {};
+    var b = $("admin-bar");
     if (!b) return;
     b.innerHTML = "";
-    b.appendChild(el("span", "pv-tag", "관리자 미리보기"));
-    var tx = el("span", "pv-txt");
-    tx.textContent = (student.name || "") + " 학생 · 학부모에게 보이는 화면입니다.";
-    b.appendChild(tx);
+    if (opts.preview) {
+      b.appendChild(el("span", "pv-tag", "관리자 미리보기"));
+      var tx = el("span", "pv-txt");
+      tx.textContent = ((opts.student && opts.student.name) || "") + " 학생 · 학부모에게 보이는 화면입니다.";
+      b.appendChild(tx);
+    } else {
+      b.appendChild(el("span", "pv-tag", "관리자"));
+      b.appendChild(el("span", "pv-txt", "관리자로 로그인된 상태입니다."));
+    }
+    var btn = el("button", "pv-admin-btn", "관리자 화면으로");
+    btn.type = "button";
+    btn.addEventListener("click", function () { window.location.href = "admin.html"; });
+    b.appendChild(btn);
     b.hidden = false;
+  }
+
+  // 일반 리포트 화면에서 관리자 Supabase 세션이 감지되면 관리자 바를 노출한다.
+  function checkAdminSession() {
+    if (!REMOTE || !window.SCApi || typeof window.SCApi.currentUser !== "function") return;
+    window.SCApi.currentUser().then(function (u) {
+      if (u) renderAdminBar({ preview: false });
+    }).catch(function () {});
   }
 
   // 버퍼에서 받은 payload로 진입. 학부모 세션(saveSession)은 건드리지 않음(읽기 전용).
@@ -783,7 +802,7 @@
     state.corrections = p.corrections || {};
     state.preview = true;
     document.body.classList.add("preview-mode");
-    showPreviewBanner(p.student);
+    renderAdminBar({ preview: true, student: p.student });
     enterStudent(p.student);
   }
 
@@ -821,6 +840,7 @@
     } else {
       showView("view-login");
       restoreSession(); // 저장된 로그인 있으면 자동 복원(새로고침 유지)
+      checkAdminSession(); // 관리자 세션이면 관리자 바 노출
     }
   }
 
