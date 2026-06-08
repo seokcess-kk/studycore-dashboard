@@ -125,6 +125,7 @@ async function parentTest() {
   parentAdminSignedIn = true;
   const emptyLS = { getItem: () => null, setItem() {}, removeItem() {} };
   const { reg: reg3, doc: doc3 } = mkDoc(PIDS, ["view-login", "view-calendar", "view-monthly"]);
+  reg3["admin-bar"].hidden = true; // HTML의 hidden 속성 반영 — renderAdminBar만 false로 바꿀 수 있게
   const ctx3 = { window: { scrollTo() {}, location: windowObj.location, SCApi: windowObj.SCApi }, document: doc3, Date, Math, console, setImmediate, localStorage: emptyLS };
   vm.createContext(ctx3);
   ["aggregate.js", "corrections.js", "app.js"].forEach(f => vm.runInContext(fs.readFileSync(path.join(WEB, f), "utf8"), ctx3));
