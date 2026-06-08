@@ -10,6 +10,9 @@ studycore-dataset.json
 node_modules/
 .vercel/
 
+# 브레인스토밍 시각 컴패니언 산출물(로컬 목업)
+.superpowers/
+
 # verify/e2e 스크린샷 산출물 (원장 화면엔 학생 PII 가능 · 용량 큼)
 .e2e-artifacts/
 
