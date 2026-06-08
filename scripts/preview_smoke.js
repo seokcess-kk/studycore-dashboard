@@ -67,4 +67,13 @@ var again = P.takePreview();
 assert(again && again.student.name === "김민준", "새로고침 케이스: sessionStorage에서 다시 읽음");
 delete global.window;
 
+console.log("== clearPreview ==");
+global.window = { localStorage: mkStore(), sessionStorage: mkStore() };
+P.writeBuffer(payload);
+global.window.sessionStorage.setItem(P.SESSION_KEY, "stale");
+P.clearPreview();
+assert(global.window.localStorage.getItem(P.BUFFER_KEY) === null, "clearPreview: localStorage 버퍼 삭제");
+assert(global.window.sessionStorage.getItem(P.SESSION_KEY) === null, "clearPreview: sessionStorage 미리보기 삭제");
+delete global.window;
+
 console.log("\n완료");

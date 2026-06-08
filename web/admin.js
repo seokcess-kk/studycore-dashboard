@@ -558,6 +558,7 @@
   }
 
   function init() {
+    if (window.SCPreview && window.SCPreview.clearPreview) window.SCPreview.clearPreview();
     wireHandlers();
     if (!REMOTE) { startApp(); return; }
 

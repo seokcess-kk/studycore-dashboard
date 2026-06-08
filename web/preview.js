@@ -74,6 +74,12 @@
     try { return JSON.parse(raw); } catch (e) { return null; }
   }
 
+  // 미리보기 컨텍스트 종료 — 버퍼/세션 잔재 제거(관리자 화면 복귀 시 호출)
+  function clearPreview() {
+    try { window.localStorage.removeItem(BUFFER_KEY); } catch (e) {}
+    try { window.sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+  }
+
   var api = {
     BUFFER_KEY: BUFFER_KEY, SESSION_KEY: SESSION_KEY,
     filterReportStudents: filterReportStudents,
@@ -81,6 +87,7 @@
     buildPreviewPayload: buildPreviewPayload,
     writeBuffer: writeBuffer,
     takePreview: takePreview,
+    clearPreview: clearPreview,
   };
   if (typeof window !== "undefined") window.SCPreview = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
