@@ -762,6 +762,29 @@
     body.appendChild(keyMetricsBlock());
   }
 
+  /* ---------- 관리자 미리보기 모드 ---------- */
+  function showPreviewBanner(student) {
+    var b = $("preview-banner");
+    if (!b) return;
+    b.innerHTML = '<span class="pv-tag">관리자 미리보기</span>' +
+      '<span class="pv-txt">' + (student.name || "") +
+      ' 학생 · 학부모에게 보이는 화면입니다.</span>';
+    b.hidden = false;
+  }
+
+  // 버퍼에서 받은 payload로 진입. 학부모 세션(saveSession)은 건드리지 않음(읽기 전용).
+  function enterPreview(p) {
+    DATA = {
+      months: p.months || [], openDays: p.openDays || {},
+      classAverages: p.classAverages || {}, students: [p.student], _remote: true,
+    };
+    state.corrections = p.corrections || {};
+    state.preview = true;
+    document.body.classList.add("preview-mode");
+    showPreviewBanner(p.student);
+    enterStudent(p.student);
+  }
+
   /* ---------- 이벤트 ---------- */
   function init() {
     if (isDevMode()) {
@@ -789,8 +812,14 @@
     });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
 
-    showView("view-login");
-    restoreSession(); // 저장된 로그인 있으면 자동 복원(새로고침 유지)
+    var preview = (window.SCPreview && window.SCPreview.takePreview)
+      ? window.SCPreview.takePreview() : null;
+    if (preview && preview.student) {
+      enterPreview(preview);
+    } else {
+      showView("view-login");
+      restoreSession(); // 저장된 로그인 있으면 자동 복원(새로고침 유지)
+    }
   }
 
   if (!DATA || !DATA.students) {
