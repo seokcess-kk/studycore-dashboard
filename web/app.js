@@ -8,7 +8,7 @@
     : ((window.SCDataset && window.SCDataset.active()) || window.STUDYCORE_DATA);
   var DOW = ["일", "월", "화", "수", "목", "금", "토"];
 
-  var state = { student: null, monthIdx: 0, corrections: {} };
+  var state = { student: null, monthIdx: 0, corrections: {}, yearMetric: "total" };
 
   /* ---------- 유틸 ---------- */
   function $(id) { return document.getElementById(id); }
@@ -413,12 +413,106 @@
 
   function setDisplay(id, val) { var e = $(id); if (e) e.style.display = val; }
 
+  // 막대 클릭 → 해당 달 달력으로 이동
+  function goToMonth(ym) {
+    var idx = DATA.months.indexOf(ym);
+    if (idx >= 0 && state.student.months[ym]) { state.monthIdx = idx; renderCalendar(); }
+  }
+
+  // 달력 상단: 선택한 달이 속한 연도의 1~12월 학습량 막대 그래프
+  function yearBarsBlock() {
+    var box = $("year-chart");
+    if (!box) return;
+    box.innerHTML = "";
+
+    var p = parseYM(currentMonthKey());
+    var year = p.y, curMonth = p.m, metric = state.yearMetric;
+
+    // 12개월 값 수집 (없는 달은 computeMonth가 null → 빈 막대)
+    var vals = {}, maxV = 1, sum = 0, cnt = 0;
+    for (var mo = 1; mo <= 12; mo++) {
+      var ym = year + "-" + pad(mo);
+      var m = state.student.months[ym] ? computeMonth(state.student, ym) : null;
+      if (m) {
+        var v = metric === "total" ? m.totalNetSec : m.dailyAvgSec;
+        vals[mo] = v;
+        if (v > maxV) maxV = v;
+        sum += v; cnt += 1;
+      }
+    }
+    var avg = cnt ? sum / cnt : 0;
+
+    // 헤더 + 지표 토글
+    var head = el("div", "yc-head");
+    head.appendChild(el("div", "yc-title",
+      year + "년 월별 학습량 <span class='sub'>(" +
+      (metric === "total" ? "월 합계" : "학습일 하루 평균") + ")</span>"));
+    var tog = el("div", "yc-toggle");
+    [["total", "월 합계"], ["daily", "하루 평균"]].forEach(function (t) {
+      var b = el("button", metric === t[0] ? "on" : null, t[1]);
+      b.type = "button";
+      b.addEventListener("click", function () {
+        if (state.yearMetric !== t[0]) { state.yearMetric = t[0]; yearBarsBlock(); }
+      });
+      tog.appendChild(b);
+    });
+    head.appendChild(tog);
+    box.appendChild(head);
+
+    // 막대
+    var bars = el("div", "yc-bars");
+    for (var mo2 = 1; mo2 <= 12; mo2++) {
+      var has = vals[mo2] != null;
+      var cell = el("div", "yc-cell" + (has ? " has" : " empty") + (mo2 === curMonth ? " current" : ""));
+      var bar = el("div", "yc-bar");
+      if (has) {
+        bar.style.height = Math.max(vals[mo2] / maxV * 84, 3) + "%";
+        var lbl = fmtBarH(vals[mo2]);
+        if (lbl) bar.appendChild(el("span", "yc-val", lbl + "h"));
+        cell.title = mo2 + "월 · " + fmtHM(vals[mo2]);
+        (function (ymStr) {
+          cell.addEventListener("click", function () { goToMonth(ymStr); });
+        })(year + "-" + pad(mo2));
+      } else {
+        bar.style.height = "4%";
+        cell.title = mo2 + "월 · 기록 없음";
+      }
+      cell.appendChild(bar);
+      bars.appendChild(cell);
+    }
+    // 연 평균 점선
+    if (avg > 0) {
+      var avgLine = el("div", "yc-avg");
+      avgLine.style.bottom = (avg / maxV * 84) + "%";
+      avgLine.appendChild(el("span", "yc-avg-tag", "연평균 " + fmtBarH(avg) + "h"));
+      bars.appendChild(avgLine);
+    }
+    box.appendChild(bars);
+
+    // x축 (1~12)
+    var xax = el("div", "yc-x");
+    for (var j = 1; j <= 12; j++) {
+      xax.appendChild(el("div", "xl" + (j === curMonth ? " cur" : ""), String(j)));
+    }
+    box.appendChild(xax);
+
+    // 범례 + 안내
+    var foot = el("div", "yc-foot");
+    foot.appendChild(el("div", "yc-legend",
+      '<span><i style="background:var(--primary)"></i>이번 달</span>' +
+      '<span><i style="background:var(--study)"></i>학습량</span>' +
+      '<span><i style="background:#e2ddd5"></i>기록 없음</span>'));
+    foot.appendChild(el("div", "yc-hint", "막대를 누르면 그 달로 이동"));
+    box.appendChild(foot);
+  }
+
   // 출결 기록이 아직 없는(명부 전용) 학생 안내
   function renderNoData() {
     var grid = $("summary-grid"); if (grid) grid.innerHTML = "";
     var cmp = $("class-compare"); if (cmp) cmp.innerHTML = "";
     var ds = $("data-status"); if (ds) ds.hidden = true;
     setDisplay("month-nav", "none");
+    setDisplay("year-chart", "none");
     setDisplay("cal-legend", "none");
     setDisplay("btn-monthly", "none");
     var cal = $("calendar");
@@ -435,6 +529,7 @@
 
     // 데이터가 있는 학생: 숨겨졌을 수 있는 영역 복원
     setDisplay("month-nav", "");
+    setDisplay("year-chart", "");
     setDisplay("cal-legend", "");
     setDisplay("btn-monthly", "");
 
@@ -442,6 +537,7 @@
     $("cal-month-title").textContent = ymLabel(ym);
     $("prev-month").disabled = !state.student.months[DATA.months[state.monthIdx - 1]];
     $("next-month").disabled = !state.student.months[DATA.months[state.monthIdx + 1]];
+    yearBarsBlock();
     renderDataStatus(m);
     renderSummary();
     renderCalendarGrid();

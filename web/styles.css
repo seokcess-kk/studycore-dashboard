@@ -141,6 +141,34 @@ summary:focus-visible, .cal-cell.clickable:focus-visible {
 }
 .nav-arrow:disabled { opacity: .3; cursor: default; }
 
+/* ===== 연도별 월 그래프 (달력 상단) ===== */
+.year-chart { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); border: var(--card-border); padding: 16px 14px 12px; margin-bottom: 14px; }
+.year-chart[style*="display: none"] { display: none; }
+.yc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 18px; }
+.yc-title { font-size: 14px; font-weight: 700; }
+.yc-title .sub { font-size: 11px; color: var(--ink-soft); font-weight: 400; margin-left: 4px; }
+.yc-toggle { display: inline-flex; background: var(--track); border-radius: 8px; padding: 2px; flex: none; }
+.yc-toggle button { border: 0; background: transparent; color: var(--ink-soft); font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 6px; }
+.yc-toggle button.on { background: var(--primary); color: #fff; box-shadow: 0 1px 2px rgba(16, 48, 80, .18); }
+.yc-bars { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 132px; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
+.yc-cell { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.yc-cell.has { cursor: pointer; }
+.yc-bar { position: relative; width: 100%; max-width: 22px; background: var(--study); border-radius: 4px 4px 0 0; min-height: 2px; transition: height .35s, background .15s; }
+.yc-cell.empty .yc-bar { background: #e2ddd5; max-width: 12px; }
+.yc-cell.current .yc-bar { background: var(--primary); }
+.yc-cell.has:hover .yc-bar { filter: brightness(1.08); }
+.yc-val { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 4px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); color: var(--ink-soft); white-space: nowrap; letter-spacing: -.3px; pointer-events: none; }
+.yc-cell.current .yc-val { color: var(--primary); font-weight: 700; }
+.yc-avg { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--ink-soft); pointer-events: none; z-index: 2; opacity: .65; }
+.yc-avg-tag { position: absolute; right: 0; top: -8px; font-size: 9px; color: var(--ink-soft); background: var(--card); padding: 0 4px; }
+.yc-x { display: flex; gap: 4px; margin-top: 5px; }
+.yc-x .xl { flex: 1; text-align: center; font-size: 10px; color: var(--ink-soft); font-family: var(--font-mono); min-width: 0; }
+.yc-x .xl.cur { color: var(--primary); font-weight: 700; }
+.yc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.yc-legend { font-size: 11px; color: var(--ink-soft); display: flex; gap: 12px; }
+.yc-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.yc-hint { font-size: 11px; color: var(--accent); }
+
 /* ===== 데이터 상태 배너 ===== */
 .data-status {
   display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.45;
@@ -351,6 +379,7 @@ summary:focus-visible, .cal-cell.clickable:focus-visible {
     grid-template-areas:
       "bar     bar"
       "nav     nav"
+      "year    year"
       "status  status"
       "legend  legend"
       "cal     summary"
@@ -359,6 +388,7 @@ summary:focus-visible, .cal-cell.clickable:focus-visible {
   }
   #view-calendar.active > .topbar { grid-area: bar; }
   #view-calendar.active > .month-nav { grid-area: nav; }
+  #view-calendar.active > .year-chart { grid-area: year; }
   #view-calendar.active > #data-status { grid-area: status; }
   #view-calendar.active > .cal-legend { grid-area: legend; }
   #view-calendar.active > .calendar { grid-area: cal; align-self: stretch; }
